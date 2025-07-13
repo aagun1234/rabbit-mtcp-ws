@@ -2,10 +2,10 @@ package connection_pool
 
 import (
 	"context"
-	"github.com/aagun1234/rabbit-tcp/block"
-	"github.com/aagun1234/rabbit-tcp/connection"
-	"github.com/aagun1234/rabbit-tcp/logger"
-	"github.com/aagun1234/rabbit-tcp/tunnel_pool"
+	"github.com/aagun1234/rabbit-mtcp-ws/block"
+	"github.com/aagun1234/rabbit-mtcp-ws/connection"
+	"github.com/aagun1234/rabbit-mtcp-ws/logger"
+	"github.com/aagun1234/rabbit-mtcp-ws/tunnel_pool"
 	"sync"
 )
 

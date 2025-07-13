@@ -1,9 +1,9 @@
 package server
 
 import (
-	"github.com/aagun1234/rabbit-tcp/logger"
-	"github.com/aagun1234/rabbit-tcp/peer"
-	"github.com/aagun1234/rabbit-tcp/tunnel"
+	"github.com/aagun1234/rabbit-mtcp-ws/logger"
+	"github.com/aagun1234/rabbit-mtcp-ws/peer"
+	"github.com/aagun1234/rabbit-mtcp-ws/tunnel"
 	"crypto/tls"
 	//"crypto/cipher"	
 	"crypto/x509"

@@ -2,10 +2,10 @@ package peer
 
 import (
 	"context"
-	"github.com/aagun1234/rabbit-tcp/connection"
-	"github.com/aagun1234/rabbit-tcp/connection_pool"
-	"github.com/aagun1234/rabbit-tcp/tunnel"
-	"github.com/aagun1234/rabbit-tcp/tunnel_pool"
+	"github.com/aagun1234/rabbit-mtcp-ws/connection"
+	"github.com/aagun1234/rabbit-mtcp-ws/connection_pool"
+	"github.com/aagun1234/rabbit-mtcp-ws/tunnel"
+	"github.com/aagun1234/rabbit-mtcp-ws/tunnel_pool"
 	"math/rand"
 )
 

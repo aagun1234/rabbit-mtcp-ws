@@ -2,10 +2,10 @@ package main
 
 import (
 	"flag"
-	"github.com/aagun1234/rabbit-tcp/client"
-	"github.com/aagun1234/rabbit-tcp/logger"
-	"github.com/aagun1234/rabbit-tcp/server"
-	"github.com/aagun1234/rabbit-tcp/tunnel"
+	"github.com/aagun1234/rabbit-mtcp-ws/client"
+	"github.com/aagun1234/rabbit-mtcp-ws/logger"
+	"github.com/aagun1234/rabbit-mtcp-ws/server"
+	"github.com/aagun1234/rabbit-mtcp-ws/tunnel"
 	"log"
 	"strings"
 )
@@ -260,7 +260,7 @@ func parseFlags() (pass bool, mode int, password string, addr []string, listen s
 
 	// version
 	if printVersion {
-		log.Println("Rabbit TCP (https://github.com/aagun1234/rabbit-tcp/)")
+		log.Println("Rabbit TCP (https://github.com/aagun1234/rabbit-mtcp-ws/)")
 		log.Printf("Version: %s.\n", Version)
 		pass = false
 		return

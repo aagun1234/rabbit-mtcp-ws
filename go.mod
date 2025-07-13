@@ -1,4 +1,4 @@
-module github.com/aagun1234/rabbit-tcp
+module github.com/aagun1234/rabbit-mtcp-ws
 
 go 1.13
 

@@ -2,8 +2,8 @@ package tunnel_pool
 
 import (
 	"context"
-	"github.com/aagun1234/rabbit-tcp/block"
-	"github.com/aagun1234/rabbit-tcp/logger"
+	"github.com/aagun1234/rabbit-mtcp-ws/block"
+	"github.com/aagun1234/rabbit-mtcp-ws/logger"
 	"sync"
 )
 
