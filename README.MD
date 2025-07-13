@@ -1,3 +1,7 @@
+forked from ihciah/rabbit-tcp
+
+changed into websocket connections
+
 # Rabbit TCP
 
 ![Build badge](https://github.com/aagun1234/rabbit-tcp/workflows/Build/badge.svg) ![Docker pull badge](https://img.shields.io/docker/pulls/ihciah/rabbit)
