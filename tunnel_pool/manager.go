@@ -4,13 +4,14 @@ import (
 	"context"
 	"github.com/aagun1234/rabbit-mtcp-ws/logger"
 	"github.com/aagun1234/rabbit-mtcp-ws/tunnel"
+	
 	"go.uber.org/atomic"
 	"crypto/tls"
 	"fmt"
 	"os"
 	"crypto/x509"
 	"strings"
-	//"net"
+	"net/http"
 	"sync"
 	"time"
 	"github.com/gorilla/websocket"
@@ -28,15 +29,26 @@ type ClientManager struct {
 	peerID             uint32
 	cipher             tunnel.Cipher
 	logger             *logger.Logger
+	authkey            string
+	insecure           bool
+}
+type ClientCFG struct {
+	tunnelNum          int
+	endpoints          []string
+	authkey            string
+	insecure           bool
+	
 }
 
-func NewClientManager(tunnelNum int, endpoints []string, peerID uint32, cipher tunnel.Cipher) ClientManager {
+func NewClientManager(tunnelNum int, endpoints []string, peerID uint32, cipher tunnel.Cipher, authkey string, insecure bool) ClientManager {
 	return ClientManager{
 		tunnelNum: tunnelNum,
 		endpoints:  endpoints,
 		cipher:    cipher,
 		peerID:    peerID,
 		logger:    logger.NewLogger("[ClientManager]"),
+		authkey:   authkey,
+		insecure:  insecure,
 	}
 }
 // TLSConfigFromFiles 从文件加载 TLS 配置
@@ -96,17 +108,17 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 			curindex=0
 		}
 		if endpoint!="" {
-			cm.logger.Infof("Need %d new tunnels to %s now.\n", tunnelToCreate,endpoint)
+			cm.logger.Debugf("Need %d new tunnels to %s now.\n", tunnelToCreate,endpoint)
 			dialTimeout := 5 * time.Second
 			//conn, err := net.DialTimeout("tcp", endpoint, dialTimeout)
 			dialer := &websocket.Dialer{
 				HandshakeTimeout: dialTimeout,
 			}
-			if !strings.Contains(endpoint, "ws://") && !strings.Contains(endpoint, "ws://")  {
+			if !strings.Contains(endpoint, "wss://") && !strings.Contains(endpoint, "ws://")  {
 				endpoint = "ws://" + endpoint
 			}
 			if strings.Contains(endpoint, "wss://") {
-				tlsConfig, err := TLSConfigFromFiles("", "", "", true)
+				tlsConfig, err := TLSConfigFromFiles("", "", "", cm.insecure)
 				if err != nil {
 					cm.logger.Errorf("failed to create client TLS config: %w", err)
 					return 
@@ -116,7 +128,14 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 					//InsecureSkipVerify: true, // WARNING: Only for testing with self-signed certs!
 				//}
 			}
-			conn, _, err := dialer.Dial(endpoint, nil)
+			requestHeader := http.Header{}
+			if cm.authkey!="" {
+			    requestHeader.Add("Authorization", "Bearer "+cm.authkey)
+			    cm.logger.Debugf("Dial with Auth Header: %v",requestHeader)
+			}
+			conn, _, err := dialer.Dial(endpoint,  requestHeader)
+			
+			
 			//conn, err := net.Dial("tcp", endpoint) //cm.endpoint)
 			if err != nil {
 				cm.logger.Errorf("Error when dial to %s: %v.\n", endpoint, err)

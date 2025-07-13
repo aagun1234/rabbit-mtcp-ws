@@ -14,6 +14,8 @@ import (
 	"time"
 	"io"
 	"net/http"
+	"runtime"
+	"strconv"
 	"errors"
 	"sync"
 	"github.com/gorilla/websocket"
@@ -22,16 +24,16 @@ type Server struct {
 	peerGroup peer.PeerGroup
 	logger    *logger.Logger
 	keyfile   string
-	crtfile   string
+	certfile   string
 	authkey   string
 }
 
-func NewServer(cipher tunnel.Cipher, authkey, keyfile, crtfile string) Server {
+func NewServer(cipher tunnel.Cipher, authkey, keyfile, certfile string) Server {
 	return Server{
 		peerGroup: peer.NewPeerGroup(cipher),
 		logger:    logger.NewLogger("[Server]"),
 		keyfile:   keyfile,
-		crtfile:   crtfile,
+		certfile:   certfile,
 		authkey:   authkey,
 	}
 }
@@ -97,10 +99,10 @@ func ParseWebSocketURL(wsURL string) (schema, hostPort, path string, err error) 
 }
 
 // TLSConfigFromFiles 从文件加载 TLS 配置
-func TLSConfigFromFiles(certFile, keyFile, caFile string, insecureSkipVerify bool) (*tls.Config, error) {
+func (s *Server)TLSConfigFromFiles(certFile, keyFile, caFile string, insecureSkipVerify bool) (*tls.Config, error) {
 	var tlsConfig tls.Config
 	//var err error
-
+	s.logger.Debugf("Loading TLS key pair from %s, %s",certFile, keyFile)
 	if certFile != "" && keyFile != "" {
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
@@ -128,20 +130,26 @@ func TLSConfigFromFiles(certFile, keyFile, caFile string, insecureSkipVerify boo
 	return &tlsConfig, nil
 }
 
-func ServeThread(wsurl string, ss *Server, wg *sync.WaitGroup) error {
+func (s *Server)ServeThread(wsurl string, wg *sync.WaitGroup) error {
+	var goruntimebuf [64]byte
+	nn := runtime.Stack(goruntimebuf[:], false)
+	goroutineid := "00000000"+strings.Fields(strings.TrimPrefix(string(goruntimebuf[:nn]), "goroutine "))[0]
+	goroutineid = goroutineid[len(goroutineid)-8:]
 	
-	schema, address, wspath, err := ParseWebSocketURL(wsurl)
+	_, address, wspath, err := ParseWebSocketURL(wsurl)
 	if err == nil {
 		// 创建HTTP路由器
 		mux := http.NewServeMux()
 		mux.HandleFunc(wspath, func(w http.ResponseWriter, r *http.Request) {
 			//处理认证
-			authHeader := r.Header.Get("Authorization")
-			expectedAuth := "Bearer " + ss.authkey
-			if authHeader != expectedAuth {
-				ss.logger.Errorf("[Server] Unauthorized WebSocket connection attempt from %s (missing or invalid Authorization header)", r.RemoteAddr)
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
+			if s.authkey!="" {
+				authHeader := r.Header.Get("Authorization")
+				expectedAuth := "Bearer " + s.authkey
+				if authHeader != expectedAuth {
+					s.logger.Errorf("[%s] Unauthorized WebSocket connection attempt from %s (missing or invalid Authorization header)", goroutineid, r.RemoteAddr)
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+					return
+				}
 			}
 		
 			// 升级为WebSocket连接
@@ -152,15 +160,15 @@ func ServeThread(wsurl string, ss *Server, wg *sync.WaitGroup) error {
 					return true // 允许所有来源
 				},
 			}
-			ss.logger.Infof("Upgrade to WebSocket for %s", r.RemoteAddr)
+			s.logger.Infof("Upgrade to WebSocket for %s", r.RemoteAddr)
 			wsConn, err := upgrader.Upgrade(w, r, nil)
 			if err != nil {
-				ss.logger.Errorf("Failed to upgrade to WebSocket for %s: %v", r.RemoteAddr, err)
+				s.logger.Errorf("Failed to upgrade to WebSocket for %s: %v", r.RemoteAddr, err)
 				return
 			}
-			err = ss.peerGroup.AddTunnelFromConn(wsConn)
+			err = s.peerGroup.AddTunnelFromConn(wsConn)
 			if err != nil {
-				ss.logger.Errorf("Error when add tunnel to tunnel pool: %v", err)
+				s.logger.Errorf("Error when add tunnel to tunnel pool: %v", err)
 				wsConn.Close()
 			}
 		})
@@ -172,28 +180,28 @@ func ServeThread(wsurl string, ss *Server, wg *sync.WaitGroup) error {
 			Handler: mux,
 		}
 		var err error
-		if ss.crtfile != "" && ss.keyfile != "" && schema=="wss://" {
-			ss.logger.Infof("Starting WSS (TLS) server on %s", address)
-			tlsConfig, err := TLSConfigFromFiles(ss.crtfile, ss.keyfile, "", true)			
+		if s.certfile != "" && s.keyfile != "" {
+			s.logger.Debugf("[%s] Config WSS (TLS) on %s", goroutineid, address)
+			tlsConfig, err := s.TLSConfigFromFiles(s.certfile, s.keyfile, "", true)			
 			if err != nil {
-				ss.logger.Errorf("[Server: startWebsocketListener] Failed to create server TLS config: %v", err)
+				s.logger.Errorf("Failed to create server TLS config: %v", err)
 				return err
 			}
 			server.TLSConfig = tlsConfig
-			ss.logger.Infof("[Server: startWebsocketListener] Listening on WSS %s/tunnel", address)
-			return server.ListenAndServeTLS(ss.crtfile, ss.keyfile)
+			s.logger.Infof("Listening on WSS %s/tunnel", address)
+			return server.ListenAndServeTLS(s.certfile, s.keyfile)
 		} else {
-			ss.logger.Infof("[Server: startWebsocketListener] Listening on WS %s/tunnel", address)
+			s.logger.Infof("Listening on WS %s/tunnel", address)
 			return server.ListenAndServe()
 		}
 			
 	
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			ss.logger.Fatalf("HTTP server ListenAndServe error: %v", err)
+			s.logger.Fatalf("HTTP server ListenAndServe error: %v", err)
 		}
 
     
-		ss.logger.Infof("WebSocket server listening on %s", address)
+		s.logger.Infof("WebSocket server listening on %s", address)
 		return server.ListenAndServe()
 	}
 	return err
@@ -202,13 +210,24 @@ func ServeThread(wsurl string, ss *Server, wg *sync.WaitGroup) error {
 
 func (s *Server) Serve(addresses []string) error {
     var wg sync.WaitGroup
+	
 	for _,address:= range addresses {
 		wg.Add(1)
-		s.logger.Infof("Serve on %s\n",address)
-		go ServeThread(address,s, &wg)
+		go s.ServeThread(address, &wg)
 	}
 	wg.Wait()
 	return nil
+}
+
+func getGoroutineID() int {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	idField := strings.Fields(strings.TrimPrefix(string(buf[:n]), "goroutine "))[0]
+	id, err := strconv.Atoi(idField)
+	if err != nil {
+		panic(fmt.Sprintf("cannot get goroutine id: %v", err))
+	}
+	return id
 }
 
 

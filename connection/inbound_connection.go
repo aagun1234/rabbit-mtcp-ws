@@ -23,6 +23,8 @@ type InboundConnection struct {
 
 	readClosed  *atomic.Bool
 	writeClosed *atomic.Bool
+	
+	LastActivity  atomic.Int64
 }
 
 func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, removeFromPool context.CancelFunc) Connection {
@@ -44,8 +46,23 @@ func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, rem
 		writeClosed: atomic.NewBool(false),
 	}
 	c.logger.Infof("InboundConnection %d created.\n", connectionID)
+	c.SetLastActive()
 	return &c
 }
+
+
+func (c *InboundConnection) SetLastActive() {
+	c.LastActivity.Store(time.Now().UnixNano())
+}
+
+func (c *InboundConnection) GetLastActiveStr() string {
+	return time.Unix(0, c.LastActivity.Load()).Format("2006-01-02 15:04:05.999999")
+}
+
+func (c *InboundConnection) GetLastActive() int64 {
+	return c.LastActivity.Load()
+}
+
 
 func (c *InboundConnection) Read(b []byte) (n int, err error) {
 	readN := 0
@@ -123,6 +140,9 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 }
 
 func (c *InboundConnection) readBlock(blk *block.Block, readN *int, b []byte) (err error) {
+	
+	c.SetLastActive()
+	
 	switch blk.Type {
 	case block.TypeDisconnect:
 		// TODO: decide shutdown type
@@ -146,6 +166,8 @@ func (c *InboundConnection) readBlock(blk *block.Block, readN *int, b []byte) (e
 		}
 		// if dst can put a block, put it
 		*readN += copy(dst, blk.BlockData)
+	case block.TypePing:
+
 	}
 	return
 }

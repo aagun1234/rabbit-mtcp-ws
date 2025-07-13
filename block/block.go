@@ -3,6 +3,7 @@ package block
 import (
 	"encoding/binary"
 	"io"
+	"time"
 
 	"go.uber.org/atomic"
 )
@@ -11,12 +12,14 @@ const (
 	TypeConnect = iota
 	TypeDisconnect
 	TypeData
+	TypePing
+	TypePong
 
 	ShutdownRead = iota
 	ShutdownWrite
 	ShutdownBoth
 
-	HeaderSize = 1 + 4 + 4 + 4
+	HeaderSize = 1 + 4 + 8 + 4 + 4
 	DataSize   = 32*1024 - 13
 	MaxSize    = HeaderSize + DataSize
 )
@@ -24,6 +27,7 @@ const (
 type Block struct {
 	Type         uint8  // 1 byte
 	ConnectionID uint32 // 4 bytes
+	TimeStamp    int64 // 8 bytes
 	BlockID      uint32 // 4 bytes
 	BlockLength  uint32 // 4 bytes
 	BlockData    []byte
@@ -37,8 +41,9 @@ func (block *Block) Pack() []byte {
 	block.packed = make([]byte, HeaderSize+len(block.BlockData))
 	block.packed[0] = block.Type
 	binary.LittleEndian.PutUint32(block.packed[1:], block.ConnectionID)
-	binary.LittleEndian.PutUint32(block.packed[5:], block.BlockID)
-	binary.LittleEndian.PutUint32(block.packed[9:], block.BlockLength)
+	binary.LittleEndian.PutUint64(block.packed[5:], uint64(block.TimeStamp))
+	binary.LittleEndian.PutUint32(block.packed[13:], block.BlockID)
+	binary.LittleEndian.PutUint32(block.packed[17:], block.BlockLength)
 	copy(block.packed[HeaderSize:], block.BlockData)
 	return block.packed
 }
@@ -52,8 +57,9 @@ func NewBlockFromReader(reader io.Reader) (*Block, error) {
 	}
 	block.Type = headerBuf[0]
 	block.ConnectionID = binary.LittleEndian.Uint32(headerBuf[1:])
-	block.BlockID = binary.LittleEndian.Uint32(headerBuf[5:])
-	block.BlockLength = binary.LittleEndian.Uint32(headerBuf[9:])
+	block.TimeStamp = int64(binary.LittleEndian.Uint64(headerBuf[5:]))
+	block.BlockID = binary.LittleEndian.Uint32(headerBuf[13:])
+	block.BlockLength = binary.LittleEndian.Uint32(headerBuf[17:])
 	block.BlockData = make([]byte, block.BlockLength)
 	if block.BlockLength > 0 {
 		_, err = io.ReadFull(reader, block.BlockData)
@@ -69,6 +75,7 @@ func NewConnectBlock(connectID uint32, blockID uint32, address string) Block {
 	return Block{
 		Type:         TypeConnect,
 		ConnectionID: connectID,
+		TimeStamp:    time.Now().UnixNano(),
 		BlockID:      blockID,
 		BlockLength:  uint32(len(data)),
 		BlockData:    data,
@@ -80,6 +87,7 @@ func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
 	blk := Block{
 		Type:         TypeData,
 		ConnectionID: connectID,
+		TimeStamp:    time.Now().UnixNano(),
 		BlockID:      blockID,
 		BlockLength:  uint32(len(data)),
 		BlockData:    data,
@@ -105,6 +113,18 @@ func NewDisconnectBlock(connectID uint32, blockID uint32, shutdownType uint8) Bl
 	return Block{
 		Type:         TypeDisconnect,
 		ConnectionID: connectID,
+		TimeStamp:    time.Now().UnixNano(),
+		BlockID:      blockID,
+		BlockLength:  1,
+		BlockData:    []byte{shutdownType},
+	}
+}
+
+func NewPingBlock(connectID uint32, blockID uint32, shutdownType uint8) Block {
+	return Block{
+		Type:         TypePing,
+		ConnectionID: connectID,
+		TimeStamp:    time.Now().UnixNano(),
 		BlockID:      blockID,
 		BlockLength:  1,
 		BlockData:    []byte{shutdownType},

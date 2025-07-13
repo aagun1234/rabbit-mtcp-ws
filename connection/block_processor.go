@@ -67,7 +67,7 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 				x.logger.Debugf("Put Block %d to cache\n", blk.BlockID)
 				x.cache[blk.BlockID] = blk
 			}
-		case <-time.After(PacketWaitTimeoutSec * time.Second):
+		case <-time.After(time.Duration(PacketWaitTimeoutSec) * time.Second):
 			x.logger.Debugf("Packet wait time exceed of Connection %d.\n", connection.GetConnectionID())
 			if x.recvBlockID == x.lastRecvBlockID {
 				x.logger.Debugf("recvBlockId == lastRecvBlockID(%d), but Connection %d is not in waiting status, continue.\n", x.recvBlockID, connection.GetConnectionID())

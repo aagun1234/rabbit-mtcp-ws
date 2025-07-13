@@ -18,11 +18,12 @@ type Client struct {
 	authkey   string
 }
 
-func NewClient(tunnelNum int, endpoints []string, cipher tunnel.Cipher, authkey string) Client {
+func NewClient(tunnelNum int, endpoints []string, cipher tunnel.Cipher, authkey string, insecure bool) Client {
 	return Client{
-		peer:   peer.NewClientPeer(tunnelNum, endpoints, cipher),
+		peer:   peer.NewClientPeer(tunnelNum, endpoints, cipher, authkey, insecure),
 		logger: logger.NewLogger("[Client]"),
 		authkey:  authkey,
+
 	}
 }
 

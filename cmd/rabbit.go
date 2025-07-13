@@ -6,86 +6,85 @@ import (
 	"github.com/aagun1234/rabbit-mtcp-ws/logger"
 	"github.com/aagun1234/rabbit-mtcp-ws/server"
 	"github.com/aagun1234/rabbit-mtcp-ws/tunnel"
+	"github.com/aagun1234/rabbit-mtcp-ws/connection"
 	"log"
+	"fmt"
+	"os"
 	"strings"
+	"gopkg.in/yaml.v3"
 )
 
 var Version = "1.0.9ws"//"No version information"
 
+var (
+	DialTimeoutSec = 6
+	ReconnectDelaySec = 5
+	MaxRetries = 3
+
+	
+)
 const (
 	ClientMode = iota
 	ServerMode
 	DefaultPassword = "PASSWORD"
 )
 
-/*
+
 type Config struct {
-	Mode             string        `yaml:"mode"`              // 运行模式: "client" 或 "server"
-	ConfigFile       string        `yaml:"-"`                 // 配置文件路径 (不写入YAML)
-	LogLevel         string        `yaml:"log_level"`         // 日志级别: "debug", "info", "warn", "error"`
-
+	Mode               string        `yaml:"mode"`            // 运行模式: "client" 或 "server"
+	ConfigFile         string        `yaml:"-"`               // 配置文件路径 (不写入YAML)
+	Verbose            int           `yaml:"verbose"`         // 日志级别: 1-5`
+	RabbitAddr         []string      `yaml:"rabbit-addr"`     // 服务端WebSocket URL列表 (例如: ["ws://server1:8081/tunnel", "wss://server2:8082/tunnel"])
+	Password           string        `yaml:"password"`        //加密用
 	// Client 模式配置
-	ClientListenAddr string        `yaml:"client_listen_addr"` // 客户端侦听的本地TCP地址 (例如: "127.0.0.1:1080")
-	StatusServer     string        `yaml:"status_server"`      // 状态服务侦听的本地TCP地址 (例如: "127.0.0.1:8010")
-	StatusACL     string           `yaml:"status_acl"`      // 状态服务ACL
-	ServerURLs       []string      `yaml:"server_urls"`        // 服务端WebSocket URL列表 (例如: ["ws://server1:8081/tunnel", "wss://server2:8082/tunnel"])
-	DialTimeout      time.Duration `yaml:"dial_timeout"`       // 拨号超时时间
-	PingInterval     time.Duration `yaml:"ping_interval"`      // Ping消息发送间隔
-	PongTimeout      time.Duration `yaml:"pong_timeout"`       // 等待Pong消息的超时时间
-	ReconnectDelay   time.Duration `yaml:"reconnect_delay"`    // 重连间隔
-	MaxRetries       int           `yaml:"max_retries"`        // 连接重试最大次数
-	ClientTLSCAFile  string        `yaml:"client_tls_ca_file"` // 客户端用于验证服务端证书的CA文件路径
-	ClientTLSCertFile string       `yaml:"client_tls_cert_file"` // 客户端证书文件路径 (可选，用于双向认证)
-	ClientTLSKeyFile string        `yaml:"client_tls_key_file"`  // 客户端密钥文件路径 (可选，用于双向认证)
-	ClientInsecureSkipVerify bool `yaml:"client_insecure_skip_verify"` // 客户端是否跳过服务端证书验证
+	Listen             string        `yaml:"listen"`          // 客户端侦听的本地TCP地址 (例如: "127.0.0.1:1080")
+	Dest               string        `yaml:"dest"`            // 目标服务
+	TunnelN            int 		     `yaml:"tunnelN"`         //客户端发起的连接数
+	AuthKey            string        `yaml:"authkey"`         // 认证密钥
+	TLSCertFile        string        `yaml:"tls-certfile"`    // 服务端证书文件路径
+	TLSKeyFile         string        `yaml:"tls-keyfile"`     // 服务端密钥文件路径
+	Insecure           bool          `yaml:"insecure"`        // 客户端是否跳过服务端证书验证InsecureSkipVerify
+	
+	StatusServer       string        `yaml:"status"`          // 状态服务侦听的本地TCP地址 (例如: "127.0.0.1:8010")
+	StatusACL          string        `yaml:"status-acl"`      // 状态服务ACL
 
-	// Server 模式配置
-	ServerListenAddrs []string        `yaml:"server_listen_addrs"` // 服务端侦听的WebSocket地址 (例如: "0.0.0.0:8081")
-	TargetAddr     string           `yaml:"target_addr"` // 目标服务
-	TargetConnectTimeout time.Duration `yaml:"target_connect_timeout"` // 服务端连接目标地址的超时时间
-	ServerTLSCertFile string       `yaml:"server_tls_cert_file"` // 服务端证书文件路径
-	ServerTLSKeyFile string        `yaml:"server_tls_key_file"`  // 服务端密钥文件路径
 
-	// 共享配置
-	AuthKey          string        `yaml:"auth_key"`           // 认证密钥
-	Password         string        `yaml:"password"`           // 认证密钥
-	EnableEncryption bool          `yaml:"enable_encryption"`  // 是否启用加密
-	Connections      int 		   `yaml:"connections"`        //客户端发起的连接数
-	SessionTimeout   time.Duration `yaml:"session_timeout"`    // 会话空闲超时时间
-	SequenceTimeout  time.Duration `yaml:"sequence_timeout"`   // 消息排序缓冲区中消息的超时时间
-	WSStatsInterval  time.Duration `yaml:"ws_stats_interval"`  // WebSocket统计输出间隔
+	DialTimeoutSec          int           `yaml:"dial-timeout"`    // 拨号超时时间 6
+	PacketWaitTimeoutSec    int           `yaml:"buffer-timeout"`  // 缓存序号超时 7
+	ReconnectDelaySec       int           `yaml:"reconnect-delay"` // 重连间隔   5
+	OutboundBlockTimeoutSec int           `yaml:"outblock-timeout"` // If block processor is waiting for a "hole", and no packet comes within this limit, the Connection will be closed 3
+	MaxRetries              int           `yaml:"max-retries"`     // 连接重试最大次数
+	
+	OrderedRecvQueueSize    int           `yaml:"order-rqueue-size"`     // 32  OrderedRecvQueue channe
+	RecvQueueSize           int           `yaml:"rqueue-size"`      //32
+	OutboundRecvBufferSize  int           `yaml:"recv-buffersize"`     //32 * 1024
 }
 
 // NewDefaultConfig 返回一个默认配置实例
 func NewDefaultConfig() *Config {
 	return &Config{
 		Mode:                 "client",
-		LogLevel:             "info",
-		ClientListenAddr:     "127.0.0.1:1080",
+		Verbose:              4,
+		RabbitAddr:           []string{"ws://127.0.0.1:443/tunnel"},
+		Password:             "PASSWORD",
+		Listen:               "127.0.0.1:1080",
+		Dest:                 "",
+		TunnelN:              4,
+		AuthKey:              "",
+		TLSCertFile:          "",
+		TLSKeyFile:           "",
+		Insecure:             true,
+	    DialTimeoutSec:       6,
+		PacketWaitTimeoutSec: 7,
+		ReconnectDelaySec:    5,
+		OutboundBlockTimeoutSec: 3,
+		MaxRetries:           3,
+		OrderedRecvQueueSize: 32,
+		RecvQueueSize:        32,
+		OutboundRecvBufferSize: 32 * 1024,
 		StatusServer:         "127.0.0.1:8010",
 		StatusACL:            "",
-		ServerURLs:           []string{"ws://127.0.0.1:8081/tunnel"},
-		DialTimeout:          5 * time.Second,
-		PingInterval:         10 * time.Second,
-		PongTimeout:          30 * time.Second,
-		ReconnectDelay:       5 * time.Second,
-		MaxRetries:           5,
-		ClientTLSCAFile:      "",
-		ClientTLSCertFile:    "",
-		ClientTLSKeyFile:     "",
-		ClientInsecureSkipVerify: false,
-		ServerListenAddrs:    []string{"0.0.0.0:8081"},
-		Password:             "PASSWORD",
-		TargetAddr:           "",
-		TargetConnectTimeout: 10 * time.Second,
-		ServerTLSCertFile:    "",
-		ServerTLSKeyFile:     "",
-		AuthKey:              "your_secret_auth_key", // 默认认证密钥，请修改
-		EnableEncryption:     true,
-		Connections:          1,
-		SessionTimeout:       5 * time.Minute,
-		SequenceTimeout:      1 * time.Second,
-		WSStatsInterval:      10 * time.Second, // 默认10秒输出一次WS统计
+
 	}
 }
 
@@ -98,70 +97,68 @@ func LoadConfig() (*Config, error) {
 	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
 	var (
-		configFileArg          string
-		modeArg                string
-		logLevelArg            string
-		clientListenAddrArg    string
-		statusServerArg        string
-		statusACLArg           string
-		serverURLsArg          string // 命令行参数的 server-urls 作为字符串处理
-		dialTimeoutArg         time.Duration
-		pingIntervalArg        time.Duration
-		pongTimeoutArg         time.Duration
-		reconnectDelayArg      time.Duration
-		maxRetriesArg          int
-		clientTLSCAFileArg     string
-		clientTLSCertFileArg   string
-		clientTLSKeyFileArg    string
-		clientInsecureSkipVerifyArg bool
-		serverListenAddrArg    string
-		passwordArg              string
-		targetAddrArg          string
-		targetConnectTimeoutArg time.Duration
-		serverTLSCertFileArg   string
-		serverTLSKeyFileArg    string
-		authKeyArg             string
-		enableEncryptionArg    bool
-		connectionsArg         int
-		sessionTimeoutArg      time.Duration
-		sequenceTimeoutArg     time.Duration
-		wsStatsIntervalArg     time.Duration
+		modeArg               string
+		configFileArg         string
+		verboseArg            int
+		rabbitAddrArg         string
+		passwordArg           string
+		listenArg             string
+		destArg               string
+		tunnelNArg            int
+		authKeyArg            string
+		tlsCertFileArg        string
+		tlsKeyFileArg         string
+		insecureArg           bool
+		statusServerArg       string
+		statusACLArg          string
+		dialTimeoutSecArg          int
+		packetWaitTimeoutSecArg    int
+		reconnectDelaySecArg       int
+		outboundBlockTimeoutSecArg int
+		maxRetriesArg              int
+		orderedRecvQueueSizeArg    int
+		recvQueueSizeArg           int
+		outboundRecvBufferSizeArg  int
+		
+		printVersion bool
 	)
 
 	// 定义所有命令行参数，将它们绑定到临时变量
 	// 注意：这里将flag的默认值设为空字符串/0/false，以便通过flagsSeen map判断是否被设置
 	fs.StringVar(&configFileArg, "c", "", "Path to configuration file (YAML)")
-	fs.StringVar(&modeArg, "mode", "", "Run mode: 'client' or 'server'")
-	fs.StringVar(&logLevelArg, "log-level", "", "Log level: 'debug', 'info', 'warn', 'error'")
-	fs.StringVar(&clientListenAddrArg, "client-listen", "", "Client local TCP listen address")
+	fs.StringVar(&modeArg, "mode", "", "running mode(s or c)")
+	fs.IntVar(&verboseArg, "verbose", 0, "verbose level(0~5)")
+	fs.StringVar(&rabbitAddrArg, "rabbit-addr", "", "Comma-separated list of server WebSocket URLs")
+	fs.StringVar(&passwordArg, "password", "", "password")
+	fs.StringVar(&listenArg, "listen", "", "[Client Only] listen address, eg: 127.0.0.1:2333")
+	fs.StringVar(&destArg, "dest", "", "[Client Only] destination address, eg: shadowsocks server address")
+	fs.IntVar(&tunnelNArg, "tunnelN", 0, "[Client Only] number of tunnels to use in rabbit-tcp")
+	fs.StringVar(&authKeyArg, "authkey", "", "Websocket authkey, eg: mysecret")
+	fs.StringVar(&tlsCertFileArg, "tls-certfile", "", "[Server Only] TLS crt file path, eg: /root/server.crt")
+	fs.StringVar(&tlsKeyFileArg, "tls-keyfile", "", "[Server Only] TLS key file path, eg: /root/server.key")
+	fs.BoolVar(&insecureArg, "insecure", false, "InsecureSkipVerify")
 	fs.StringVar(&statusServerArg, "status-server", "", "Sataus server listen address")
 	fs.StringVar(&statusACLArg, "status-acl", "", "Status server ACL")
-	fs.StringVar(&serverURLsArg, "server-urls", "", "Comma-separated list of server WebSocket URLs")
-	fs.DurationVar(&dialTimeoutArg, "dial-timeout", 0, "Dial timeout for WebSocket connections")
-	fs.DurationVar(&pingIntervalArg, "ping-interval", 0, "Interval for sending ping messages")
-	fs.DurationVar(&pongTimeoutArg, "pong-timeout", 0, "Timeout for receiving pong messages")
-	fs.DurationVar(&reconnectDelayArg, "reconnect-delay", 0, "Delay before reconnecting")
-	fs.IntVar(&maxRetriesArg, "max-retries", 0, "Max connection retry attempts")
-	fs.StringVar(&clientTLSCAFileArg, "client-tls-ca", "", "Client TLS CA file path")
-	fs.StringVar(&clientTLSCertFileArg, "client-tls-cert", "", "Client TLS certificate file path")
-	fs.StringVar(&clientTLSKeyFileArg, "client-tls-key", "", "Client TLS key file path")
-	fs.BoolVar(&clientInsecureSkipVerifyArg, "client-insecure-skip-verify", false, "Client skip server certificate verification")
-	fs.StringVar(&serverListenAddrArg, "server-listen", "", "Comma-separated list of Server WebSocket listen address")
-	fs.DurationVar(&targetConnectTimeoutArg, "target-connect-timeout", 0, "Timeout for server connecting to target")
-	fs.StringVar(&serverTLSCertFileArg, "server-tls-cert", "", "Server TLS certificate file path")
-	fs.StringVar(&serverTLSKeyFileArg, "server-tls-key", "", "Server TLS key file path")
-	fs.StringVar(&passwordArg, "password", "PASSWORD", "Password")
-	fs.StringVar(&targetAddrArg, "target-addr", "", "target service address")
-	fs.StringVar(&authKeyArg, "auth-key", "", "Authentication key for WebSocket connections")
-	fs.BoolVar(&enableEncryptionArg, "enable-encryption", false, "Enable AES256 encryption")
-	fs.IntVar(&connectionsArg, "connections", 1, "concurrent connections by client")
-	fs.IntVar(&paddingMinArg, "padding-min", 0, "Min random padding length")
-	fs.IntVar(&paddingMaxArg, "padding-max", 0, "Max random padding length")
-	fs.DurationVar(&sessionTimeoutArg, "session-timeout", 0, "Session idle timeout")
-	fs.DurationVar(&sequenceTimeoutArg, "sequence-timeout", 0, "Sequence buffer message timeout")
-	fs.DurationVar(&wsStatsIntervalArg, "ws-stats-interval", 0, "Interval for logging WebSocket stats")
+	fs.IntVar(&dialTimeoutSecArg, "dial-timeout", 0, "")
+	fs.IntVar(&packetWaitTimeoutSecArg, "packet-timeout", 0, "")
+	fs.IntVar(&reconnectDelaySecArg, "reconnect-delay", 0, "")
+	fs.IntVar(&outboundBlockTimeoutSecArg, "outbound-timeout", 0, "")
+	fs.IntVar(&maxRetriesArg, "max-retries", 0, "")
+	fs.IntVar(&orderedRecvQueueSizeArg, "order-rqueue-size", 0, "")
+	fs.IntVar(&recvQueueSizeArg, "rqueue-size", 0, "")
+	fs.IntVar(&outboundRecvBufferSizeArg, "buffer-size", 0, "")
+	
+	fs.BoolVar(&printVersion, "version", false, "show version")
 
 	fs.Parse(os.Args[1:]) // 2. 解析命令行参数，它们会填充到上面的临时变量中
+	
+	// version
+	if printVersion {
+		log.Println("Rabbit TCP (https://github.com/aagun1234/rabbit-mtcp-ws/)")
+		log.Printf("Version: %s.\n", Version)
+		return nil,nil
+	}
+
 
 	// 记录哪些命令行参数被显式设置了
 	flagsSeen := make(map[string]bool)
@@ -176,8 +173,8 @@ func LoadConfig() (*Config, error) {
 		homeDir, _ := os.UserHomeDir()
 		possiblePaths := []string{
 			"config.yaml", // 当前目录
-			fmt.Sprintf("%s/.go-tunnel/config.yaml", homeDir), // 用户主目录
-			"/etc/go-tunnel/config.yaml",                      // Linux 系统常见配置目录
+			fmt.Sprintf("%s/.rabbit/config.yaml", homeDir), // 用户主目录
+			"/etc/rabbit/config.yaml",                      // Linux 系统常见配置目录
 		}
 		for _, p := range possiblePaths {
 			if _, err := os.Stat(p); err == nil {
@@ -196,78 +193,72 @@ func LoadConfig() (*Config, error) {
 		if err := yaml.Unmarshal(fileContent, cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config file %s: %w", configFilePath, err)
 		}
-	} else {
-		fmt.Printf("Warning: No config file found. Using defaults and command-line flags.\n")
-	}
+	} 
 
 	// 4. 命令行参数覆盖YAML文件和默认值
 	// 检查每个参数是否在命令行中被显式设置了，如果是，则用命令行值覆盖
 	if flagsSeen["mode"] { cfg.Mode = modeArg }
-	if flagsSeen["log-level"] { cfg.LogLevel = logLevelArg }
-	if flagsSeen["client-listen"] { cfg.ClientListenAddr = clientListenAddrArg }
+	if flagsSeen["verbose"] { cfg.Verbose = verboseArg }
+	if flagsSeen["rabbit-addr"] { cfg.RabbitAddr = splitAndTrim(rabbitAddrArg, ",") } // 命令行参数需要特殊处理
+	if flagsSeen["password"] { cfg.Password = passwordArg }
+	if flagsSeen["listen"] { cfg.Listen = listenArg }
+	if flagsSeen["dest"] { cfg.Dest = destArg }
+	if flagsSeen["tunnelN"] { cfg.TunnelN = tunnelNArg }
+	if flagsSeen["authkey"] { cfg.AuthKey = authKeyArg }
+	if flagsSeen["tls-certfile"] { cfg.TLSCertFile = tlsCertFileArg }
+	if flagsSeen["tls-keyfile"] { cfg.TLSKeyFile = tlsKeyFileArg }
+	if flagsSeen["insecure"] { cfg.Insecure = insecureArg }
 	if flagsSeen["status-server"] { cfg.StatusServer = statusServerArg }
 	if flagsSeen["status-acl"] { cfg.StatusACL = statusACLArg }
-	if flagsSeen["server-urls"] { cfg.ServerURLs = splitAndTrim(serverURLsArg, ",") } // 命令行参数需要特殊处理
-	if flagsSeen["dial-timeout"] { cfg.DialTimeout = dialTimeoutArg }
-	if flagsSeen["ping-interval"] { cfg.PingInterval = pingIntervalArg }
-	if flagsSeen["pong-timeout"] { cfg.PongTimeout = pongTimeoutArg }
-	if flagsSeen["reconnect-delay"] { cfg.ReconnectDelay = reconnectDelayArg }
+	if flagsSeen["dial-timeout"] { cfg.DialTimeoutSec = dialTimeoutSecArg }
+	if flagsSeen["packet-timeout"] { cfg.PacketWaitTimeoutSec = packetWaitTimeoutSecArg }
+	if flagsSeen["reconnect-delay"] { cfg.ReconnectDelaySec = reconnectDelaySecArg }
+	if flagsSeen["outbound-timeout"] { cfg.OutboundBlockTimeoutSec = outboundBlockTimeoutSecArg }
 	if flagsSeen["max-retries"] { cfg.MaxRetries = maxRetriesArg }
-	if flagsSeen["client-tls-ca"] { cfg.ClientTLSCAFile = clientTLSCAFileArg }
-	if flagsSeen["client-tls-cert"] { cfg.ClientTLSCertFile = clientTLSCertFileArg }
-	if flagsSeen["client-tls-key"] { cfg.ClientTLSKeyFile = clientTLSKeyFileArg }
-	if flagsSeen["client-insecure-skip-verify"] { cfg.ClientInsecureSkipVerify = clientInsecureSkipVerifyArg }
-	if flagsSeen["server-listen"] { cfg.ServerListenAddrs = splitAndTrim(serverListenAddrArg, ",") }
-	if flagsSeen["target-connect-timeout"] { cfg.TargetConnectTimeout = targetConnectTimeoutArg }
-	if flagsSeen["server-tls-cert"] { cfg.ServerTLSCertFile = serverTLSCertFileArg }
-	if flagsSeen["server-tls-key"] { cfg.ServerTLSKeyFile = serverTLSKeyFileArg }
-	if flagsSeen["ws-path"] { cfg.WSPath = wsPathArg }
-	if flagsSeen["target-addr"] { cfg.TargetAddr = targetAddrArg }
-	if flagsSeen["auth-key"] { cfg.AuthKey = authKeyArg }
-	if flagsSeen["enable-encryption"] { cfg.EnableEncryption = enableEncryptionArg }
-	if flagsSeen["connections"] { cfg.Connections = connectionsArg }
-	if flagsSeen["padding-min"] { cfg.PaddingMin = paddingMinArg }
-	if flagsSeen["padding-max"] { cfg.PaddingMax = paddingMaxArg }
-	if flagsSeen["session-timeout"] { cfg.SessionTimeout = sessionTimeoutArg }
-	if flagsSeen["sequence-timeout"] { cfg.SequenceTimeout = sequenceTimeoutArg }
-	if flagsSeen["ws-stats-interval"] { cfg.WSStatsInterval = wsStatsIntervalArg }
-
+	if flagsSeen["order-rqueue-size"] { cfg.OrderedRecvQueueSize = orderedRecvQueueSizeArg }
+	if flagsSeen["rqueue-size"] { cfg.RecvQueueSize = recvQueueSizeArg }
+	if flagsSeen["buffer-size"] { cfg.OutboundRecvBufferSize = outboundRecvBufferSizeArg }
+	
 	return cfg, nil
 }
 
 
-*/
-
-func parseFlags() (pass bool, mode int, password string, addr []string, listen string, dest, authkey, cafile, keyfile, crtfile string, tunnelN int, verbose int) {
+func parseFlags() (pass bool, mode int, password string, addr []string, listen string, dest, authkey, keyfile, crtfile string, tunnelN int, verbose int, insecure bool) {
 	var modeString string
-	var rabbitaddr string
-	var printVersion bool
-	flag.StringVar(&modeString, "mode", "c", "running mode(s or c)")
-	flag.StringVar(&password, "password", DefaultPassword, "password")
-	flag.StringVar(&rabbitaddr, "rabbit-addr", ":443", "listen(server mode) or remote(client mode) address used by rabbit-tcp, eg: 192.168.1.10:22222,192.168.1.11:22223,192.168.1.12:22224")
-	flag.StringVar(&listen, "listen", "", "[Client Only] listen address, eg: 127.0.0.1:2333")
-	flag.StringVar(&dest, "dest", "", "[Client Only] destination address, eg: shadowsocks server address")
-	flag.StringVar(&authkey, "authkey", "", "websocket authkey, eg: mysecret")
-	flag.StringVar(&cafile, "tlsca", "", "[Client Only] TLS CA file path, eg: /root/client.ca")
-	flag.StringVar(&keyfile, "tlskey", "", "[Server Only] TLS key file path, eg: /root/server.key")
-	flag.StringVar(&crtfile, "tlscrt", "", "[Server Only] TLS crt file path, eg: /root/server.crt")
-	flag.IntVar(&tunnelN, "tunnelN", 4, "[Client Only] number of tunnels to use in rabbit-tcp")
-	flag.IntVar(&verbose, "verbose", 2, "verbose level(0~5)")
-	flag.BoolVar(&printVersion, "version", false, "show version")
-	flag.Parse()
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		fmt.Printf("Failed to load configuration: %v\n", err)
+		os.Exit(1)
+	}
+	if cfg == nil {
+		os.Exit(0)
+	}
 
 	pass = true
 
-	// version
-	if printVersion {
-		log.Println("Rabbit TCP (https://github.com/aagun1234/rabbit-mtcp-ws/)")
-		log.Printf("Version: %s.\n", Version)
-		pass = false
-		return
-	}
-
 	// mode
-	modeString = strings.ToLower(modeString)
+	modeString = strings.ToLower(cfg.Mode)
+	password=cfg.Password
+	addr=cfg.RabbitAddr
+	listen=cfg.Listen
+	dest=cfg.Dest
+	authkey=cfg.AuthKey
+	keyfile=cfg.TLSKeyFile
+	crtfile=cfg.TLSCertFile
+	verbose=cfg.Verbose
+	tunnelN=cfg.TunnelN
+	insecure=cfg.Insecure
+	DialTimeoutSec = cfg.DialTimeoutSec
+	ReconnectDelaySec = cfg.ReconnectDelaySec
+	MaxRetries = cfg.MaxRetries
+	connection.OrderedRecvQueueSize    = cfg.OrderedRecvQueueSize
+	connection.RecvQueueSize           = cfg.RecvQueueSize
+	connection.OutboundRecvBuffer      = cfg.OutboundRecvBufferSize
+	connection.OutboundBlockTimeoutSec = cfg.OutboundBlockTimeoutSec
+	connection.PacketWaitTimeoutSec    = cfg.PacketWaitTimeoutSec
+	connection.DialTimeoutSec          = cfg.DialTimeoutSec
+	
 	if modeString == "c" || modeString == "client" {
 		mode = ClientMode
 	} else if modeString == "s" || modeString == "server" {
@@ -306,23 +297,90 @@ func parseFlags() (pass bool, mode int, password string, addr []string, listen s
 		}
 	}
 	
-	addr = strings.Split(rabbitaddr, ",")
+	//addr = strings.Split(rabbitaddr, ",")
 	return
 }
 
 func main() {
-	pass, mode, password, addr, listen, dest, authkey, _, keyfile, crtfile, tunnelN, verbose := parseFlags()
+	pass, mode, password, addr, listen, dest, authkey, keyfile, crtfile, tunnelN, verbose, insecure := parseFlags()
 	if !pass {
 		return
 	}
+	logger.LEVEL = verbose	
+	mainlogger:=logger.NewLogger("[ClientManager]")
+	
+
+	mainlogger.Debugf("mode: %v, password: %v, addr: %v, listen: %v, dest: %v, authkey: %v, keyfile: %v, crtfile: %v, tunnelN: %v, verbose: %v\n",mode, password, addr, listen, dest, authkey, keyfile, crtfile, tunnelN, verbose)
 	cipher, _ := tunnel.NewAEADCipher("CHACHA20-IETF-POLY1305", nil, password)
-	logger.LEVEL = verbose
 	if mode == ClientMode {
-		c := client.NewClient(tunnelN, addr, cipher, authkey)
+		c := client.NewClient(tunnelN, addr, cipher, authkey,insecure)
 		c.ServeForward(listen, dest)
 	} else {
+	    
 		s := server.NewServer(cipher, authkey, keyfile, crtfile)
 		s.Serve(addr)
 	}
 }
 
+
+// 辅助函数：分割字符串并去除空白
+func splitAndTrim(s, sep string) []string {
+	if s == "" { // 处理空字符串情况，避免返回 [""]
+		return []string{}
+	}
+	parts := strings.Split(s, sep)
+	trimmedParts := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			trimmedParts = append(trimmedParts, trimmed)
+		}
+	}
+	return trimmedParts
+}
+
+// 辅助函数：简化版 strings.Split
+func split(s, sep string) []string {
+	var result []string
+	idx := 0
+	for {
+		i := find(s[idx:], sep)
+		if i == -1 {
+			result = append(result, s[idx:])
+			break
+		}
+		result = append(result, s[idx:idx+i])
+		idx += i + len(sep)
+	}
+	return result
+}
+
+// 辅助函数：简化版 strings.TrimSpace
+func trimSpace(s string) string {
+	start := 0
+	for start < len(s) && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
+		start++
+	}
+	end := len(s)
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n' || s[end-1] == '\r') {
+		end--
+	}
+	return s[start:end]
+}
+
+// 辅助函数：简化版 strings.Index
+func find(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		match := true
+		for j := 0; j < len(substr); j++ {
+			if s[i+j] != substr[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
+}

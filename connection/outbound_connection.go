@@ -54,7 +54,7 @@ func (oc *OutboundConnection) closeThenCancel() {
 func (oc *OutboundConnection) RecvRelay() {
 	recvBuffer := make([]byte, OutboundRecvBuffer)
 	for {
-		oc.HalfOpenConn.SetReadDeadline(time.Now().Add(OutboundBlockTimeoutSec * time.Second))
+		oc.HalfOpenConn.SetReadDeadline(time.Now().Add(time.Duration(OutboundBlockTimeoutSec) * time.Second))
 		n, err := oc.HalfOpenConn.Read(recvBuffer)
 		if err == nil {
 			oc.sendData(recvBuffer[:n])
@@ -101,7 +101,7 @@ func (oc *OutboundConnection) SendRelay() {
 				continue
 			case block.TypeData:
 				oc.logger.Debugln("Send out DATA bytes.")
-				oc.HalfOpenConn.SetWriteDeadline(time.Now().Add(OutboundBlockTimeoutSec * time.Second))
+				oc.HalfOpenConn.SetWriteDeadline(time.Now().Add(time.Duration(OutboundBlockTimeoutSec) * time.Second))
 				_, err := oc.HalfOpenConn.Write(blk.BlockData)
 				if err == nil {
 					oc.HalfOpenConn.SetWriteDeadline(time.Time{})
@@ -141,7 +141,7 @@ func (oc *OutboundConnection) connect(address string) {
 	if !oc.closed.Load() || oc.HalfOpenConn != nil {
 		return
 	}
-	dialTimeout := 5 * time.Second
+	dialTimeout := time.Duration(DialTimeoutSec) * time.Second
 	rawConn, err := net.DialTimeout("tcp", address, dialTimeout)
 	//rawConn, err := net.Dial("tcp", address)
 	if err == nil {
