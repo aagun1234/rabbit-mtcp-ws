@@ -274,8 +274,9 @@ func (tunnel *Tunnel) PingPong() {
 			tunnel.logger.Infoln("PingPong ended.")
 			return
 		case <-ticker.C:
-			tunnel.logger.Debugf("%d,%d",(time.Now().UnixNano()-tunnel.LastActivity.Load())/10e9,PingInterval)
-			if (time.Now().UnixNano()-tunnel.LastActivity.Load())/10e9 > int64(PingInterval) { 
+
+			//tunnel.logger.Debugf("%d,%d",(nowstamp-tunnel.LastActivity.Load())/1e9,PingInterval)
+			if (time.Now().UnixNano()-tunnel.GetLastActive())/1e9 > int64(PingInterval) { 
 				blk:= block.NewPingBlock(tunnel.tunnelID,0,uint64(tunnel.GetLatencyNano()))
 				tunnel.logger.Debugf("Sending Ping to websocket, with local latency: %d us", tunnel.GetLatencyNano()/1000)
 				tunnel.packThenSend(blk, nil)
