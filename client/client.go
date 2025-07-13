@@ -44,7 +44,7 @@ func (c *Client) ServeForward(listen, dest string) error {
 			continue
 		}
 		go func() {
-			c.logger.Infof("Accepted a connection. %s\n",dest)
+			c.logger.Infof("Accepted a connection from %s to %s \n",conn.RemoteAddr, dest)
 			//c.logger.Infoln("Accepted a connection.")
 			connProxy := c.Dial(dest)
 			biRelay(conn.(*net.TCPConn), connProxy, c.logger)

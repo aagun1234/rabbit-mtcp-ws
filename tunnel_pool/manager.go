@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+
 type Manager interface {
 	Notify(pool *TunnelPool)         // When TunnelPool size changed, Notify should be called
 	DecreaseNotify(pool *TunnelPool) // When TunnelPool size decreased, DecreaseNotify should be called
@@ -109,7 +110,7 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 		}
 		if endpoint!="" {
 			cm.logger.Debugf("Need %d new tunnels to %s now.\n", tunnelToCreate,endpoint)
-			dialTimeout := 5 * time.Second
+			dialTimeout := time.Duration(DialTimeoutSec) * time.Second
 			//conn, err := net.DialTimeout("tcp", endpoint, dialTimeout)
 			dialer := &websocket.Dialer{
 				HandshakeTimeout: dialTimeout,
@@ -151,21 +152,24 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 					cm.logger.Errorf(" %s moved to last.\n", endpoint)
 					continue
 				}
-				time.Sleep(ErrorWaitSec * time.Second)
+				time.Sleep(time.Duration(ErrorWaitSec) * time.Second)
 				lastfailed=endpoint
 				continue
 			}
 			if lastfailed==endpoint {
 				lastfailed="" //last failed successed, reset
 			}
-			tun, err := NewActiveTunnel(conn, cm.cipher, cm.peerID)
+			tun, err := NewActiveTunnel(conn, cm.cipher, cm.peerID)//创建一个tunnel并交换ID（握手）
 			if err != nil {
 				cm.logger.Errorf("Error when create active tunnel: %v\n", err)
-				time.Sleep(ErrorWaitSec * time.Second)
+				time.Sleep(time.Duration(ErrorWaitSec) * time.Second)
 				continue
 			}
 			cm.logger.Infof("ClientManager DecreaseNotify Set ReadDeadLine unlimit.\n")
 			conn.SetReadDeadline(time.Time{})
+			if PingInterval>0 {
+				go tun.PingPong()
+			}
 			pool.AddTunnel(&tun)
 			tunnelToCreate--
 			cm.logger.Infof("Successfully dialed to %s. TunnelToCreate: %d\n", endpoint, tunnelToCreate)
@@ -201,7 +205,7 @@ func (sm *ServerManager) Notify(pool *TunnelPool) {
 			select {
 			case <-destroyAfterCtx.Done():
 				sm.logger.Debugln("ServerManager notify canceled.")
-			case <-time.After(EmptyPoolDestroySec * time.Second):
+			case <-time.After(time.Duration(EmptyPoolDestroySec) * time.Second):
 				sm.logger.Infoln("ServerManager will be destroyed.")
 				sm.removePeerFunc()
 			}

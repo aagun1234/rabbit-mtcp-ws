@@ -120,13 +120,28 @@ func NewDisconnectBlock(connectID uint32, blockID uint32, shutdownType uint8) Bl
 	}
 }
 
-func NewPingBlock(connectID uint32, blockID uint32, shutdownType uint8) Block {
+func NewPingBlock(connectID uint32, blockID uint32, lancenty uint64) Block {
+	buf := make([]byte, 8) 
+	binary.LittleEndian.PutUint64(buf, lancenty) 
 	return Block{
 		Type:         TypePing,
 		ConnectionID: connectID,
 		TimeStamp:    time.Now().UnixNano(),
 		BlockID:      blockID,
-		BlockLength:  1,
-		BlockData:    []byte{shutdownType},
+		BlockLength:  8,
+		BlockData:    buf,
+	}
+}
+
+func NewPongBlock(connectID uint32, blockID uint32, timestamp uint64) Block {
+	buf := make([]byte, 8) 
+	binary.LittleEndian.PutUint64(buf, timestamp) 
+	return Block{
+		Type:         TypePong,
+		ConnectionID: connectID,
+		TimeStamp:    time.Now().UnixNano(),
+		BlockID:      blockID,
+		BlockLength:  8,
+		BlockData:    buf,
 	}
 }

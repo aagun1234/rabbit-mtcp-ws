@@ -99,6 +99,12 @@ func (oc *OutboundConnection) SendRelay() {
 			case block.TypeConnect:
 				// Will do nothing!
 				continue
+			case block.TypePing:
+				// Will do nothing!
+				continue
+			case block.TypePong:
+				// Will do nothing!
+				continue
 			case block.TypeData:
 				oc.logger.Debugln("Send out DATA bytes.")
 				oc.HalfOpenConn.SetWriteDeadline(time.Now().Add(time.Duration(OutboundBlockTimeoutSec) * time.Second))
@@ -131,8 +137,16 @@ func (oc *OutboundConnection) SendRelay() {
 func (oc *OutboundConnection) RecvBlock(blk block.Block) {
 	if blk.Type == block.TypeConnect {
 		address := string(blk.BlockData)
+		oc.logger.Debugf("OutBoundConnection received TypeConnect for %s.\n", address)
 		go oc.connect(address)
 	}
+	if blk.Type == block.TypePing {
+		oc.logger.Debugf("OutBoundConnection received TypePing.\n")
+	}
+	if blk.Type == block.TypePong {
+		oc.logger.Debugf("OutBoundConnection received TypePong.\n")
+	}
+	
 	oc.recvQueue <- blk
 }
 

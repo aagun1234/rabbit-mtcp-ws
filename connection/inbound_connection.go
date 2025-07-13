@@ -167,6 +167,9 @@ func (c *InboundConnection) readBlock(blk *block.Block, readN *int, b []byte) (e
 		// if dst can put a block, put it
 		*readN += copy(dst, blk.BlockData)
 	case block.TypePing:
+		c.logger.Debugf("InboundConnection received TypePing.\n")
+	case block.TypePong:
+		c.logger.Debugf("InboundConnection received TypePpng.\n")
 
 	}
 	return

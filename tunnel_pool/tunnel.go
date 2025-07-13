@@ -14,6 +14,7 @@ import (
 	"net"
 	"time"
 	"github.com/gorilla/websocket"
+	"go.uber.org/atomic"
 )
 
 type Tunnel struct {
@@ -24,7 +25,13 @@ type Tunnel struct {
 	tunnelID uint32
 	peerID   uint32
 	logger   *logger.Logger
+	RecvBytes  uint64
+	SentBytes  uint64
+	LastActivity  atomic.Int64
+	LatencyNano   atomic.Int64
 }
+
+
 
 // Create a new tunnel from a net.Conn and cipher with random tunnelID
 //func NewActiveTunnel(conn net.Conn, ciph tunnel.Cipher, peerID uint32) (Tunnel, error) {
@@ -50,9 +57,33 @@ func newTunnelWithID(wsConn *websocket.Conn, ciph tunnel.Cipher, peerID uint32) 
 		tunnelID: tunnelID,
 		logger:   logger.NewLogger(fmt.Sprintf("[Tunnel-%d]", tunnelID)),
 	}
-	tun.logger.Infoln("Tunnel created.")
+	tun.logger.Infof("Tunnel %d created.", tunnelID)
 	return tun
 }
+
+
+
+
+func (tunnel *Tunnel) SetLastActive() {
+	tunnel.LastActivity.Store(time.Now().UnixNano())
+}
+
+func (tunnel *Tunnel) GetLastActiveStr() string {
+	return time.Unix(0, tunnel.LastActivity.Load()).Format("2006-01-02 15:04:05.999999")
+}
+
+func (tunnel *Tunnel) GetLastActive() int64 {
+	return tunnel.LastActivity.Load()
+}
+
+
+func (tunnel *Tunnel) SetLatencyNanoSince(timestamp int64) {	
+	tunnel.LatencyNano.Store(time.Now().UnixNano()-timestamp)
+}
+func (tunnel *Tunnel) GetLatencyNano() int64 {	
+	return tunnel.LatencyNano.Load()
+}
+
 
 func (tunnel *Tunnel) activeExchangePeerID() (err error) {
 	err = tunnel.sendPeerID(tunnel.peerID)
@@ -118,19 +149,21 @@ func (tunnel *Tunnel) recvPeerID() (uint32, error) {
 	return peerID, nil
 }
 
-// Read block from send channel, pack it and send
+// Read block from send channel, pack it and send, client to server
 func (tunnel *Tunnel) OutboundRelay(normalQueue, retryQueue chan block.Block) {
-	tunnel.logger.Infoln("Outbound relay started.")
+	tunnel.logger.Infof("Outbound relay started. (PeerID: %d)",tunnel.peerID)
 	for {
 		// cancel is of highest priority
 		select {
 		case <-tunnel.ctx.Done():
+			tunnel.logger.Infof("Outbound relay(cancel) ended. (PeerID: %d)",tunnel.peerID)
 			return
 		default:
 		}
 		// retryQueue is of secondary highest priority
 		select {
 		case <-tunnel.ctx.Done():
+			tunnel.logger.Infof("Outbound relay(retry) ended. (PeerID: %d)",tunnel.peerID)
 			return
 		case blk := <-retryQueue:
 			tunnel.packThenSend(blk, retryQueue)
@@ -139,6 +172,7 @@ func (tunnel *Tunnel) OutboundRelay(normalQueue, retryQueue chan block.Block) {
 		// normalQueue is of secondary highest priority
 		select {
 		case <-tunnel.ctx.Done():
+			tunnel.logger.Infof("Outbound relay(normal) ended. (PeerID: %d)",tunnel.peerID)
 			return
 		case blk := <-retryQueue:
 			tunnel.packThenSend(blk, retryQueue)
@@ -152,9 +186,10 @@ func (tunnel *Tunnel) packThenSend(blk block.Block, retryQueue chan block.Block)
 	dataToSend := blk.Pack()
 	reader := bytes.NewReader(dataToSend)
 
-	tunnel.Conn.SetWriteDeadline(time.Now().Add(TunnelBlockTimeoutSec * time.Second))
+	tunnel.Conn.SetWriteDeadline(time.Now().Add(time.Duration(TunnelBlockTimeoutSec) * time.Second))
 	n, err := io.Copy(tunnel.Conn, reader)
-	if err != nil || n != int64(len(dataToSend)) {
+ 
+	if (err != nil || n != int64(len(dataToSend))) && retryQueue!=nil {
 		tunnel.logger.Warnf("Error when send bytes to tunnel: (n: %d, error: %v).\n", n, err)
 		// Tunnel down and message has not been fully sent.
 		tunnel.closeThenCancel()
@@ -170,7 +205,7 @@ func (tunnel *Tunnel) packThenSend(blk block.Block, retryQueue chan block.Block)
 
 // Read bytes from connection, parse it to block then put in recv channel
 func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
-	tunnel.logger.Infoln("Inbound relay started.")
+	tunnel.logger.Infof("Inbound relay started. (PeerID: %d)",tunnel.peerID)
 	for {
 		select {
 		case <-tunnel.ctx.Done():
@@ -180,27 +215,75 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 				blk, err := block.NewBlockFromReader(tunnel.Conn)
 				if err == nil {
 					tunnel.logger.Debugf("Block received from tunnel(type: %d) successfully after close.\n", blk.Type)
+
 					output <- *blk
+					
+					
 				} else {
 					tunnel.logger.Debugf("Error when receiving block from tunnel after close: %v.\n", err)
 					break
 				}
 			}
+			tunnel.logger.Infof("Inbound relay ended. (PeerID: %d)",tunnel.peerID)
 			return
 		default:
 			blk, err := block.NewBlockFromReader(tunnel.Conn)
 			if err != nil {
 				// Server will never close connection in normal cases
-				tunnel.logger.Errorf("Error when receiving block from tunnel: %v.\n", err)
+				tunnel.logger.Errorf("Error when receiving block from tunnel: %v.\n" , err)
 				// Tunnel down and message has not been fully read.
 				tunnel.closeThenCancel()
 			} else {
-				tunnel.logger.Debugf("Block received from tunnel(type: %d)successfully.\n", blk.Type)
-				output <- *blk
+				tunnel.logger.Debugf("Block received from tunnel(type: %d)successfully.\n" , blk.Type)
+				tunnel.SetLastActive()
+				if blk.Type == block.TypePing {
+					
+					tunnel.logger.Debugf("InboundRelay received TypePing, ConnectID: %d.\n",blk.ConnectionID)
+						
+					pongblk:= block.NewPongBlock(0,0,uint64(blk.TimeStamp))
+					tunnel.logger.Debugf("Sending Pong to websocket, with payload timestamp: %s", time.Unix(0, blk.TimeStamp).Format("2006-01-02 15:04:05.999999"))
+					tunnel.packThenSend(pongblk, nil)
+						
+				} else if blk.Type == block.TypePong {
+					tunnel.logger.Debugf("InboundRelay received TypePong.\n")
+					timestamp:=int64(binary.LittleEndian.Uint64(blk.BlockData))
+					tunnel.SetLatencyNanoSince(timestamp)
+					tunnel.logger.Infof("Ping-Pong Latency: %d us", tunnel.GetLatencyNano()/1000)
+				} else {
+
+					output <- *blk
+				}
+				
 			}
 		}
 	}
 }
+
+
+
+// Read bytes from connection, parse it to block then put in recv channel
+func (tunnel *Tunnel) PingPong() {
+	tunnel.logger.Infoln("PingPong started.")
+	
+	ticker := time.NewTicker(1*time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-tunnel.ctx.Done():
+			tunnel.logger.Infoln("PingPong ended.")
+			return
+		case <-ticker.C:
+			tunnel.logger.Debugf("%d,%d",(time.Now().UnixNano()-tunnel.LastActivity.Load())/10e8,PingInterval)
+			if (time.Now().UnixNano()-tunnel.LastActivity.Load())/10e8 > int64(PingInterval) { 
+				blk:= block.NewPingBlock(tunnel.tunnelID,0,uint64(tunnel.GetLatencyNano()))
+				tunnel.logger.Debugf("Sending Ping to websocket, with local latency: %d us", tunnel.GetLatencyNano()/1000)
+				tunnel.packThenSend(blk, nil)
+			}
+		}
+	}
+}
+
 
 func (tunnel *Tunnel) GetPeerID() uint32 {
 	return tunnel.peerID

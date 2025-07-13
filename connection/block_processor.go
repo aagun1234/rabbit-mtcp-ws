@@ -86,10 +86,20 @@ func (x *blockProcessor) packData(data []byte, connectionID uint32) []block.Bloc
 	return block.NewDataBlocks(connectionID, &x.sendBlockID, data)
 }
 
+
 func (x *blockProcessor) packConnect(address string, connectionID uint32) block.Block {
 	return block.NewConnectBlock(connectionID, x.sendBlockID.Inc()-1, address)
 }
 
 func (x *blockProcessor) packDisconnect(connectionID uint32, shutdownType uint8) block.Block {
 	return block.NewDisconnectBlock(connectionID, x.sendBlockID.Inc()-1, shutdownType)
+}
+
+
+func (x *blockProcessor) packPing(connectionID uint32, latency uint64) block.Block {
+	return block.NewPingBlock(connectionID, 0, latency)
+}
+
+func (x *blockProcessor) packPong(connectionID uint32, timestamp uint64) block.Block {
+	return block.NewPongBlock(connectionID, 0, timestamp)
 }

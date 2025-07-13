@@ -48,6 +48,32 @@ type baseConnection struct {
 	recvQueue        chan block.Block
 	orderedRecvQueue chan block.Block
 	logger           *logger.Logger
+	LastActivity     atomic.Int64
+	LatencyNano      atomic.Int64
+}
+
+
+
+func (bc *baseConnection) SetLastActive() {
+	bc.LastActivity.Store(time.Now().UnixNano())
+}
+
+
+func (bc *baseConnection) GetLastActiveStr() string {
+	return time.Unix(0, bc.LastActivity.Load()).Format("2006-01-02 15:04:05.999999")
+}
+
+func (bc *baseConnection) GetLastActive() int64 {
+	return bc.LastActivity.Load()
+}
+
+
+
+func (bc *baseConnection) SetLatencyNanoSince(timestamp int64) {	
+	bc.LatencyNano.Store(time.Now().UnixNano()-timestamp)
+}
+func (bc *baseConnection) GetLatencyNano() int64 {	
+	return bc.LatencyNano.Load()
 }
 
 func (bc *baseConnection) Stop() {
@@ -97,9 +123,6 @@ func (bc *baseConnection) sendData(data []byte) {
 		bc.sendQueue <- blk
 	}
 }
-
-
-
 
 
 //================================================

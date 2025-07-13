@@ -53,6 +53,7 @@ func (pg *PeerGroup) AddTunnel(tunnel *tunnel_pool.Tunnel) error {
 	}
 	pg.lock.Unlock()
 	peer.tunnelPool.AddTunnel(tunnel)
+	
 	return nil
 }
 
@@ -63,6 +64,7 @@ func (pg *PeerGroup) AddTunnelFromConn(conn *websocket.Conn) error {
 		conn.Close()
 		return err
 	}
+	
 	return pg.AddTunnel(&tun)
 }
 

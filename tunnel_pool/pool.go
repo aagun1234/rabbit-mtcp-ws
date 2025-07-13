@@ -35,6 +35,7 @@ func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) 
 	}
 	tp.logger.Infof("Tunnel Pool of peer %d created.\n", peerID)
 	go manager.DecreaseNotify(tp)
+	
 	return tp
 }
 

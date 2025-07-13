@@ -1,0 +1,12 @@
+mode: client
+verbose: 5
+listen: 127.0.0.1:8080
+rabbit-addr:
+  - wss://cf19446.2tutu.com:2053/tunnel
+  - wss://cf19446.2tutu.com:2087/tunnel # 示例WSS
+tunnelN: 4
+dest: 127.0.0.1:7891
+authkey: aaddcc
+password: 1234
+insecure: true # 开发测试用，生产不推荐
+status_server: 127.0.0.1:8888

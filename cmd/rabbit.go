@@ -6,6 +6,7 @@ import (
 	"github.com/aagun1234/rabbit-mtcp-ws/logger"
 	"github.com/aagun1234/rabbit-mtcp-ws/server"
 	"github.com/aagun1234/rabbit-mtcp-ws/tunnel"
+	"github.com/aagun1234/rabbit-mtcp-ws/tunnel_pool"
 	"github.com/aagun1234/rabbit-mtcp-ws/connection"
 	"log"
 	"fmt"
@@ -48,16 +49,19 @@ type Config struct {
 	StatusServer       string        `yaml:"status"`          // 状态服务侦听的本地TCP地址 (例如: "127.0.0.1:8010")
 	StatusACL          string        `yaml:"status-acl"`      // 状态服务ACL
 
+	PingIntervalSec         int           `yaml:"ping-interval"`    // ping间隔 30
 
 	DialTimeoutSec          int           `yaml:"dial-timeout"`    // 拨号超时时间 6
+	RecvTimeoutSec          int           `yaml:"recv-timeout"`    // 应答超时 20
 	PacketWaitTimeoutSec    int           `yaml:"buffer-timeout"`  // 缓存序号超时 7
 	ReconnectDelaySec       int           `yaml:"reconnect-delay"` // 重连间隔   5
 	OutboundBlockTimeoutSec int           `yaml:"outblock-timeout"` // If block processor is waiting for a "hole", and no packet comes within this limit, the Connection will be closed 3
 	MaxRetries              int           `yaml:"max-retries"`     // 连接重试最大次数
 	
-	OrderedRecvQueueSize    int           `yaml:"order-rqueue-size"`     // 32  OrderedRecvQueue channe
-	RecvQueueSize           int           `yaml:"rqueue-size"`      //32
-	OutboundRecvBufferSize  int           `yaml:"recv-buffersize"`     //32 * 1024
+	OrderedRecvQueueSize    int           `yaml:"order-rqueue-size"`     // 64  OrderedRecvQueue channe
+	SendQueueSize           int           `yaml:"squeue-size"`      //64
+	RecvQueueSize           int           `yaml:"rqueue-size"`      //64
+	OutboundRecvBufferSize  int           `yaml:"recv-buffersize"`     //64 * 1024
 }
 
 // NewDefaultConfig 返回一个默认配置实例
@@ -74,13 +78,16 @@ func NewDefaultConfig() *Config {
 		TLSCertFile:          "",
 		TLSKeyFile:           "",
 		Insecure:             true,
+		PingIntervalSec:      30,
 	    DialTimeoutSec:       6,
-		PacketWaitTimeoutSec: 7,
+		RecvTimeoutSec:       20,
+		PacketWaitTimeoutSec: 8,
 		ReconnectDelaySec:    5,
 		OutboundBlockTimeoutSec: 3,
 		MaxRetries:           3,
-		OrderedRecvQueueSize: 32,
-		RecvQueueSize:        32,
+		OrderedRecvQueueSize: 64,
+		SendQueueSize:        64,
+		RecvQueueSize:        64,
 		OutboundRecvBufferSize: 32 * 1024,
 		StatusServer:         "127.0.0.1:8010",
 		StatusACL:            "",
@@ -111,12 +118,15 @@ func LoadConfig() (*Config, error) {
 		insecureArg           bool
 		statusServerArg       string
 		statusACLArg          string
+		pingIntervalSecArg          int
 		dialTimeoutSecArg          int
+		recvTimeoutSecArg          int
 		packetWaitTimeoutSecArg    int
 		reconnectDelaySecArg       int
 		outboundBlockTimeoutSecArg int
 		maxRetriesArg              int
 		orderedRecvQueueSizeArg    int
+		sendQueueSizeArg           int
 		recvQueueSizeArg           int
 		outboundRecvBufferSizeArg  int
 		
@@ -139,12 +149,15 @@ func LoadConfig() (*Config, error) {
 	fs.BoolVar(&insecureArg, "insecure", false, "InsecureSkipVerify")
 	fs.StringVar(&statusServerArg, "status-server", "", "Sataus server listen address")
 	fs.StringVar(&statusACLArg, "status-acl", "", "Status server ACL")
+	fs.IntVar(&pingIntervalSecArg, "ping-interval", 0, "")
 	fs.IntVar(&dialTimeoutSecArg, "dial-timeout", 0, "")
+	fs.IntVar(&recvTimeoutSecArg, "recv-timeout", 0, "")
 	fs.IntVar(&packetWaitTimeoutSecArg, "packet-timeout", 0, "")
 	fs.IntVar(&reconnectDelaySecArg, "reconnect-delay", 0, "")
 	fs.IntVar(&outboundBlockTimeoutSecArg, "outbound-timeout", 0, "")
 	fs.IntVar(&maxRetriesArg, "max-retries", 0, "")
 	fs.IntVar(&orderedRecvQueueSizeArg, "order-rqueue-size", 0, "")
+	fs.IntVar(&sendQueueSizeArg, "squeue-size", 0, "")
 	fs.IntVar(&recvQueueSizeArg, "rqueue-size", 0, "")
 	fs.IntVar(&outboundRecvBufferSizeArg, "buffer-size", 0, "")
 	
@@ -210,12 +223,15 @@ func LoadConfig() (*Config, error) {
 	if flagsSeen["insecure"] { cfg.Insecure = insecureArg }
 	if flagsSeen["status-server"] { cfg.StatusServer = statusServerArg }
 	if flagsSeen["status-acl"] { cfg.StatusACL = statusACLArg }
+	if flagsSeen["ping-interval"] { cfg.PingIntervalSec = pingIntervalSecArg }
 	if flagsSeen["dial-timeout"] { cfg.DialTimeoutSec = dialTimeoutSecArg }
+	if flagsSeen["recv-timeout"] { cfg.RecvTimeoutSec = recvTimeoutSecArg }
 	if flagsSeen["packet-timeout"] { cfg.PacketWaitTimeoutSec = packetWaitTimeoutSecArg }
 	if flagsSeen["reconnect-delay"] { cfg.ReconnectDelaySec = reconnectDelaySecArg }
 	if flagsSeen["outbound-timeout"] { cfg.OutboundBlockTimeoutSec = outboundBlockTimeoutSecArg }
 	if flagsSeen["max-retries"] { cfg.MaxRetries = maxRetriesArg }
 	if flagsSeen["order-rqueue-size"] { cfg.OrderedRecvQueueSize = orderedRecvQueueSizeArg }
+	if flagsSeen["squeue-size"] { cfg.SendQueueSize = sendQueueSizeArg }
 	if flagsSeen["rqueue-size"] { cfg.RecvQueueSize = recvQueueSizeArg }
 	if flagsSeen["buffer-size"] { cfg.OutboundRecvBufferSize = outboundRecvBufferSizeArg }
 	
@@ -258,7 +274,14 @@ func parseFlags() (pass bool, mode int, password string, addr []string, listen s
 	connection.OutboundBlockTimeoutSec = cfg.OutboundBlockTimeoutSec
 	connection.PacketWaitTimeoutSec    = cfg.PacketWaitTimeoutSec
 	connection.DialTimeoutSec          = cfg.DialTimeoutSec
-	
+	tunnel_pool.DialTimeoutSec         = cfg.DialTimeoutSec
+	tunnel_pool.ReconnectDelaySec      = cfg.ReconnectDelaySec
+	tunnel_pool.MaxRetries             = cfg.MaxRetries
+	tunnel_pool.TunnelBlockTimeoutSec  = cfg.OutboundBlockTimeoutSec
+	tunnel_pool.ErrorWaitSec           = cfg.ReconnectDelaySec
+	tunnel_pool.PingInterval           = cfg.PingIntervalSec
+	//tunnel_pool.SendQueueSize          = cfg.SendQueueSize
+	tunnel_pool.RecvQueueSize         = cfg.RecvQueueSize
 	if modeString == "c" || modeString == "client" {
 		mode = ClientMode
 	} else if modeString == "s" || modeString == "server" {
