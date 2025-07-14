@@ -242,7 +242,7 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 				if blk.Type == block.TypePing {
 					clatency:=int64(binary.LittleEndian.Uint64(blk.BlockData))
 					tunnel.SetLatencyNano(clatency)
-					tunnel.logger.Debugf("TypePing received, ConnectID: %d, client latency: %d us\n",blk.ConnectionID, clatency/1000)
+					tunnel.logger.Infof("Ping-Pong client latency: %d us\n", clatency/1000)
 						
 					pongblk:= block.NewPongBlock(0,0,uint64(blk.TimeStamp))
 					tunnel.logger.Debugf("Sending Pong to websocket, with payload timestamp: %s", time.Unix(0, blk.TimeStamp).Format("2006-01-02 15:04:05.999999"))

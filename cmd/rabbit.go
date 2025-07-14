@@ -136,7 +136,7 @@ func LoadConfig() (*Config, error) {
 	// 注意：这里将flag的默认值设为空字符串/0/false，以便通过flagsSeen map判断是否被设置
 	fs.StringVar(&configFileArg, "c", "", "Path to configuration file (YAML)")
 	fs.StringVar(&modeArg, "mode", "", "running mode(s or c)")
-	fs.IntVar(&verboseArg, "verbose", 0, "verbose level(0~5)")
+	fs.IntVar(&verboseArg, "verbose", 0, "verbose level(0~6)")
 	fs.StringVar(&rabbitAddrArg, "rabbit-addr", "", "Comma-separated list of server WebSocket URLs")
 	fs.StringVar(&passwordArg, "password", "", "password")
 	fs.StringVar(&listenArg, "listen", "", "[Client Only] listen address, eg: 127.0.0.1:2333")
