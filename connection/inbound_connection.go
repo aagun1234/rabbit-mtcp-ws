@@ -45,7 +45,7 @@ func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, rem
 		readClosed:  atomic.NewBool(false),
 		writeClosed: atomic.NewBool(false),
 	}
-	c.logger.Infof("InboundConnection %d created.\n", connectionID)
+	c.logger.InfoAf("InboundConnection %d created.\n", connectionID)
 	c.SetLastActive()
 	return &c
 }
@@ -109,7 +109,7 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 				}
 			}
 		case <-c.readCtx.Done():
-			c.logger.Infoln("ReadDeadline exceeded.")
+			c.logger.InfoAln("ReadDeadline exceeded.")
 			if readN != 0 {
 				return readN, nil
 			} else {
@@ -131,7 +131,7 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 				return readN, nil
 			}
 		case <-c.readCtx.Done():
-			c.logger.Infoln("ReadDeadline exceeded.")
+			c.logger.InfoAln("ReadDeadline exceeded.")
 			return readN, nil
 		default:
 			return readN, nil

@@ -165,14 +165,14 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 				time.Sleep(time.Duration(ErrorWaitSec) * time.Second)
 				continue
 			}
-			cm.logger.Infof("ClientManager DecreaseNotify Set ReadDeadLine unlimit.\n")
+			cm.logger.Debugf("ClientManager DecreaseNotify Set ReadDeadLine unlimit.\n")
 			conn.SetReadDeadline(time.Time{})
 			if PingInterval>0 {
 				go tun.PingPong()
 			}
 			pool.AddTunnel(&tun)
 			tunnelToCreate--
-			cm.logger.Infof("Successfully dialed to %s. TunnelToCreate: %d\n", endpoint, tunnelToCreate)
+			cm.logger.Infof("Successfully dialed to %s. ", endpoint)
 		}
 	}
 }
@@ -206,7 +206,7 @@ func (sm *ServerManager) Notify(pool *TunnelPool) {
 			case <-destroyAfterCtx.Done():
 				sm.logger.Debugln("ServerManager notify canceled.")
 			case <-time.After(time.Duration(EmptyPoolDestroySec) * time.Second):
-				sm.logger.Infoln("ServerManager will be destroyed.")
+				sm.logger.InfoAln("ServerManager will be destroyed.")
 				sm.removePeerFunc()
 			}
 		}(sm)

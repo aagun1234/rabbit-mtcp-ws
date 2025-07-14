@@ -57,7 +57,7 @@ func newTunnelWithID(wsConn *websocket.Conn, ciph tunnel.Cipher, peerID uint32) 
 		tunnelID: tunnelID,
 		logger:   logger.NewLogger(fmt.Sprintf("[Tunnel-%d]", tunnelID)),
 	}
-	tun.logger.Infof("Tunnel %d created.", tunnelID)
+	tun.logger.InfoAf("Tunnel %d created.", tunnelID)
 	return tun
 }
 
@@ -103,7 +103,7 @@ func (tunnel *Tunnel) activeExchangePeerID() (err error) {
 		tunnel.logger.Errorf("Cannot exchange peerID(local: %d, remote: %d).\n", tunnel.peerID, peerID)
 		return errors.New("invalid exchanging")
 	}
-	tunnel.logger.Infoln("PeerID exchange successfully.")
+	tunnel.logger.Infof("PeerID %d exchange successfully.",peerID)
 	return
 }
 
@@ -119,7 +119,7 @@ func (tunnel *Tunnel) passiveExchangePeerID() (err error) {
 		return err
 	}
 	tunnel.peerID = peerID
-	tunnel.logger.Infoln("PeerID exchange successfully.")
+	tunnel.logger.Infof("PeerID %d exchange successfully.",peerID)
 	return
 }
 
@@ -131,7 +131,7 @@ func (tunnel *Tunnel) sendPeerID(peerID uint32) error {
 		tunnel.logger.Errorf("Peer id sent with error:%v.\n", err)
 		return err
 	}
-	tunnel.logger.Infoln("Peer id sent.")
+	tunnel.logger.Debugln("Peer id sent.")
 	return nil
 }
 
@@ -148,25 +148,25 @@ func (tunnel *Tunnel) recvPeerID() (uint32, error) {
 		return 0, err
 	}
 	peerID := binary.LittleEndian.Uint32(peerIDBuffer)
-	tunnel.logger.Infoln("Peer id recv.")
+	tunnel.logger.Debugln("Peer id recv.")
 	return peerID, nil
 }
 
 // Read block from send channel, pack it and send, client to server
 func (tunnel *Tunnel) OutboundRelay(normalQueue, retryQueue chan block.Block) {
-	tunnel.logger.Infof("Outbound relay started. (PeerID: %d)",tunnel.peerID)
+	tunnel.logger.InfoAf("Outbound relay started. (PeerID: %d)",tunnel.peerID)
 	for {
 		// cancel is of highest priority
 		select {
 		case <-tunnel.ctx.Done():
-			tunnel.logger.Infof("Outbound relay(cancel) ended. (PeerID: %d)",tunnel.peerID)
+			tunnel.logger.InfoAf("Outbound relay(cancel) ended. (PeerID: %d)",tunnel.peerID)
 			return
 		default:
 		}
 		// retryQueue is of secondary highest priority
 		select {
 		case <-tunnel.ctx.Done():
-			tunnel.logger.Infof("Outbound relay(retry) ended. (PeerID: %d)",tunnel.peerID)
+			tunnel.logger.InfoAf("Outbound relay(retry) ended. (PeerID: %d)",tunnel.peerID)
 			return
 		case blk := <-retryQueue:
 			tunnel.packThenSend(blk, retryQueue)
@@ -175,7 +175,7 @@ func (tunnel *Tunnel) OutboundRelay(normalQueue, retryQueue chan block.Block) {
 		// normalQueue is of secondary highest priority
 		select {
 		case <-tunnel.ctx.Done():
-			tunnel.logger.Infof("Outbound relay(normal) ended. (PeerID: %d)",tunnel.peerID)
+			tunnel.logger.InfoAf("Outbound relay(normal) ended. (PeerID: %d)",tunnel.peerID)
 			return
 		case blk := <-retryQueue:
 			tunnel.packThenSend(blk, retryQueue)
@@ -208,7 +208,7 @@ func (tunnel *Tunnel) packThenSend(blk block.Block, retryQueue chan block.Block)
 
 // Read bytes from connection, parse it to block then put in recv channel
 func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
-	tunnel.logger.Infof("Inbound relay started. (PeerID: %d)",tunnel.peerID)
+	tunnel.logger.InfoAf("Inbound relay started. (PeerID: %d)",tunnel.peerID)
 	for {
 		select {
 		case <-tunnel.ctx.Done():
@@ -227,7 +227,7 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 					break
 				}
 			}
-			tunnel.logger.Infof("Inbound relay ended. (PeerID: %d)",tunnel.peerID)
+			tunnel.logger.InfoAf("Inbound relay ended. (PeerID: %d)",tunnel.peerID)
 			return
 		default:
 			blk, err := block.NewBlockFromReader(tunnel.Conn)
@@ -242,7 +242,7 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 				if blk.Type == block.TypePing {
 					clatency:=int64(binary.LittleEndian.Uint64(blk.BlockData))
 					tunnel.SetLatencyNano(clatency)
-					tunnel.logger.Debugf("TypePing received, ConnectID: %d, client latency: %d us\n",blk.ConnectionID,latency/1000)
+					tunnel.logger.Debugf("TypePing received, ConnectID: %d, client latency: %d us\n",blk.ConnectionID, clatency/1000)
 						
 					pongblk:= block.NewPongBlock(0,0,uint64(blk.TimeStamp))
 					tunnel.logger.Debugf("Sending Pong to websocket, with payload timestamp: %s", time.Unix(0, blk.TimeStamp).Format("2006-01-02 15:04:05.999999"))
@@ -267,7 +267,7 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 
 // Read bytes from connection, parse it to block then put in recv channel
 func (tunnel *Tunnel) PingPong() {
-	tunnel.logger.Infoln("PingPong started.")
+	tunnel.logger.InfoAln("PingPong started.")
 	
 	ticker := time.NewTicker(1*time.Second)
 	defer ticker.Stop()
@@ -275,7 +275,7 @@ func (tunnel *Tunnel) PingPong() {
 	for {
 		select {
 		case <-tunnel.ctx.Done():
-			tunnel.logger.Infoln("PingPong ended.")
+			tunnel.logger.InfoAln("PingPong ended.")
 			return
 		case <-ticker.C:
 

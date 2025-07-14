@@ -188,10 +188,10 @@ func (s *Server)ServeThread(wsurl string, wg *sync.WaitGroup) error {
 				return err
 			}
 			server.TLSConfig = tlsConfig
-			s.logger.Infof("Listening on WSS %s/tunnel", address)
+			s.logger.Logf("Listening on WSS %s/tunnel", address)
 			return server.ListenAndServeTLS(s.certfile, s.keyfile)
 		} else {
-			s.logger.Infof("Listening on WS %s/tunnel", address)
+			s.logger.Logf("Listening on WS %s/tunnel", address)
 			return server.ListenAndServe()
 		}
 			
@@ -201,7 +201,7 @@ func (s *Server)ServeThread(wsurl string, wg *sync.WaitGroup) error {
 		}
 
     
-		s.logger.Infof("WebSocket server listening on %s", address)
+		//s.logger.Infof("WebSocket server listening on %s", address)
 		return server.ListenAndServe()
 	}
 	return err

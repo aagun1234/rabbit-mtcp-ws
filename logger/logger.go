@@ -11,6 +11,7 @@ const (
 	LogLevelError
 	LogLevelWarn
 	LogLevelInfo
+	LogLevelInfoA
 	LogLevelDebug
 )
 
@@ -28,6 +29,15 @@ func NewLogger(prefix string) *Logger {
 	}
 }
 
+func (l *Logger) Logln(v string) {
+	l.logger.Println(v)
+
+}
+func (l *Logger) Logf(format string, v ...interface{}) {
+	l.logger.Printf(format, v...)
+}
+
+
 func (l *Logger) Debugln(v string) {
 	if l.level >= LogLevelDebug {
 		l.logger.Println("[Debug] " + v)
@@ -39,6 +49,19 @@ func (l *Logger) Debugf(format string, v ...interface{}) {
 		l.logger.Printf("[Debug] "+format, v...)
 	}
 }
+
+func (l *Logger) InfoAln(v string) {
+	if l.level >= LogLevelInfoA {
+		l.logger.Println("[Info] " + v)
+	}
+}
+
+func (l *Logger) InfoAf(format string, v ...interface{}) {
+	if l.level >= LogLevelInfoA {
+		l.logger.Printf("[Info] "+format, v...)
+	}
+}
+
 
 func (l *Logger) Infoln(v string) {
 	if l.level >= LogLevelInfo {

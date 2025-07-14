@@ -44,7 +44,7 @@ func (pg *PeerGroup) AddTunnel(tunnel *tunnel_pool.Tunnel) error {
 		serverPeer := NewServerPeerWithID(peerID, peerContext, removePeerFunc)
 		peer = &serverPeer
 		pg.peerMapping[peerID] = peer
-		pg.logger.Infof("Server Peer %d added to PeerGroup.\n", peerID)
+		pg.logger.InfoAf("Server Peer %d added to PeerGroup.\n", peerID)
 
 		go func() {
 			<-peerContext.Done()
@@ -69,7 +69,7 @@ func (pg *PeerGroup) AddTunnelFromConn(conn *websocket.Conn) error {
 }
 
 func (pg *PeerGroup) RemovePeer(peerID uint32) {
-	pg.logger.Infof("Server Peer %d removed from peer group.\n", peerID)
+	pg.logger.InfoAf("Server Peer %d removed from peer group.\n", peerID)
 	pg.lock.Lock()
 	defer pg.lock.Unlock()
 	delete(pg.peerMapping, peerID)

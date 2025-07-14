@@ -33,7 +33,7 @@ func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) 
 		cancel:         cancel,
 		logger:         logger.NewLogger("[TunnelPool]"),
 	}
-	tp.logger.Infof("Tunnel Pool of peer %d created.\n", peerID)
+	tp.logger.InfoAf("Tunnel Pool of peer %d created.\n", peerID)
 	go manager.DecreaseNotify(tp)
 	
 	return tp
@@ -41,7 +41,7 @@ func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) 
 
 // Add a tunnel to tunnelPool and start bi-relay
 func (tp *TunnelPool) AddTunnel(tunnel *Tunnel) {
-	tp.logger.Infof("Tunnel %d added to Peer %d.\n", tunnel.tunnelID, tp.peerID)
+	tp.logger.Debugf("Tunnel %d added to Peer %d.\n", tunnel.tunnelID, tp.peerID)
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
 
@@ -60,7 +60,7 @@ func (tp *TunnelPool) AddTunnel(tunnel *Tunnel) {
 
 // Remove a tunnel from tunnelPool and stop bi-relay
 func (tp *TunnelPool) RemoveTunnel(tunnel *Tunnel) {
-	tp.logger.Infof("Tunnel %d to peer %d removed from pool.\n", tunnel.tunnelID, tunnel.peerID)
+	tp.logger.Debugf("Tunnel %d to peer %d removed from pool.\n", tunnel.tunnelID, tunnel.peerID)
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
 	if tunnel, ok := tp.tunnelMapping[tunnel.tunnelID]; ok {

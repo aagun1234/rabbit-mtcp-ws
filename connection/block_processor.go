@@ -34,7 +34,7 @@ func newBlockProcessor(ctx context.Context, removeFromPool context.CancelFunc) b
 // Join blocks and send buffer to connection
 // TODO: If waiting a packet for TIMEOUT, break the connection; otherwise re-countdown for next waiting packet.
 func (x *blockProcessor) OrderedRelay(connection Connection) {
-	x.logger.Infof("Ordered Relay of Connection %d started.\n", connection.GetConnectionID())
+	x.logger.InfoAf("Ordered Relay of Connection %d started.\n", connection.GetConnectionID())
 	for {
 		select {
 		case blk := <-connection.getRecvQueue():
@@ -76,7 +76,7 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 			x.logger.Warnf("Connection %d is going to be killed due to timeout.\n", connection.GetConnectionID())
 			x.removeFromPool()
 		case <-x.relayCtx.Done():
-			x.logger.Infof("Ordered Relay of Connection %d stopped.\n", connection.GetConnectionID())
+			x.logger.InfoAf("Ordered Relay of Connection %d stopped.\n", connection.GetConnectionID())
 			return
 		}
 	}

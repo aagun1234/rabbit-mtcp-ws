@@ -36,7 +36,7 @@ func NewConnectionPool(pool *tunnel_pool.TunnelPool, acceptNewConnection bool, b
 		ctx:                 ctx,
 		cancel:              cancel,
 	}
-	cp.logger.Infoln("Connection Pool created.")
+	cp.logger.InfoAln("Connection Pool created.")
 	go cp.sendRelay()
 	go cp.recvRelay()
 	return cp
@@ -67,7 +67,7 @@ func (cp *ConnectionPool) NewPooledOutboundConnection(connectionID uint32) conne
 }
 
 func (cp *ConnectionPool) addConnection(conn connection.Connection) {
-	cp.logger.Infof("Connection %d added to connection pool.\n", conn.GetConnectionID())
+	cp.logger.InfoAf("Connection %d added to connection pool.\n", conn.GetConnectionID())
 	cp.mappingLock.Lock()
 	defer cp.mappingLock.Unlock()
 	cp.connectionMapping[conn.GetConnectionID()] = conn
@@ -75,7 +75,7 @@ func (cp *ConnectionPool) addConnection(conn connection.Connection) {
 }
 
 func (cp *ConnectionPool) removeConnection(conn connection.Connection) {
-	cp.logger.Infof("Connection %d removed from connection pool.\n", conn.GetConnectionID())
+	cp.logger.InfoAf("Connection %d removed from connection pool.\n", conn.GetConnectionID())
 	cp.mappingLock.Lock()
 	defer cp.mappingLock.Unlock()
 	if _, ok := cp.connectionMapping[conn.GetConnectionID()]; ok {
@@ -85,7 +85,7 @@ func (cp *ConnectionPool) removeConnection(conn connection.Connection) {
 
 // Deliver blocks from tunnelPool channel to specified connections
 func (cp *ConnectionPool) recvRelay() {
-	cp.logger.Infoln("Recv Relay started.")
+	cp.logger.InfoAln("Recv Relay started.")
 	for {
 		select {
 		case blk := <-cp.tunnelPool.GetRecvQueue():
@@ -98,7 +98,7 @@ func (cp *ConnectionPool) recvRelay() {
 			if !ok {
 				if cp.acceptNewConnection {
 					conn = cp.NewPooledOutboundConnection(blk.ConnectionID)
-					cp.logger.Infoln("Connection created and added to connectionPool.")
+					cp.logger.InfoAln("Connection created and added to connectionPool.")
 				} else {
 					cp.logger.Errorln("Unknown connection.")
 					continue
@@ -107,7 +107,7 @@ func (cp *ConnectionPool) recvRelay() {
 			conn.RecvBlock(blk)
 			cp.logger.Debugf("Block %d(type: %d) put to connRecvQueue.\n", blk.BlockID, blk.Type)
 		case <-cp.ctx.Done():
-			cp.logger.Infoln("Recv Relay stopped.")
+			cp.logger.InfoAln("Recv Relay stopped.")
 			return
 		}
 	}
@@ -116,14 +116,14 @@ func (cp *ConnectionPool) recvRelay() {
 // Deliver blocks from connPool's sendQueue to tunnelPool
 // TODO: Maybe QOS can be implemented here
 func (cp *ConnectionPool) sendRelay() {
-	cp.logger.Infoln("Send Relay started.")
+	cp.logger.InfoAln("Send Relay started.")
 	for {
 		select {
 		case blk := <-cp.sendQueue:
 			cp.tunnelPool.GetSendQueue() <- blk
 			cp.logger.Debugf("Block %d(type: %d) put to connSendQueue.\n", blk.BlockID, blk.Type)
 		case <-cp.ctx.Done():
-			cp.logger.Infoln("Send Relay stopped.")
+			cp.logger.InfoAln("Send Relay stopped.")
 			return
 		}
 	}

@@ -33,7 +33,7 @@ func NewOutboundConnection(connectionID uint32, sendQueue chan<- block.Block, ct
 		ctx:    ctx,
 		cancel: removeFromPool,
 	}
-	c.logger.Infof("OutboundConnection %d created.\n", connectionID)
+	c.logger.InfoAf("OutboundConnection %d created.\n", connectionID)
 	return &c
 }
 
