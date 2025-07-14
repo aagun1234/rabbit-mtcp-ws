@@ -1,6 +1,6 @@
 forked from ihciah/rabbit-tcp
 
-Change the TCP connection to a WebSocket connection, which can directly use CDN.
+Change the TCP connection to WebSocket connection, which can directly use CDN.
 
 Load configuration from yaml file.
 
