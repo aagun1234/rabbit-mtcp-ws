@@ -80,6 +80,9 @@ func (tunnel *Tunnel) GetLastActive() int64 {
 func (tunnel *Tunnel) SetLatencyNanoSince(timestamp int64) {	
 	tunnel.LatencyNano.Store(time.Now().UnixNano()-timestamp)
 }
+func (tunnel *Tunnel) SetLatencyNano(latency int64) {	
+	tunnel.LatencyNano.Store(latency)
+}
 func (tunnel *Tunnel) GetLatencyNano() int64 {	
 	return tunnel.LatencyNano.Load()
 }
@@ -237,8 +240,9 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 				tunnel.logger.Debugf("Block received from tunnel(type: %d)successfully.\n" , blk.Type)
 				tunnel.SetLastActive()
 				if blk.Type == block.TypePing {
-					
-					tunnel.logger.Debugf("InboundRelay received TypePing, ConnectID: %d.\n",blk.ConnectionID)
+					clatency:=int64(binary.LittleEndian.Uint64(blk.BlockData))
+					tunnel.SetLatencyNano(clatency)
+					tunnel.logger.Debugf("TypePing received, ConnectID: %d, client latency: %d us\n",blk.ConnectionID,latency/1000)
 						
 					pongblk:= block.NewPongBlock(0,0,uint64(blk.TimeStamp))
 					tunnel.logger.Debugf("Sending Pong to websocket, with payload timestamp: %s", time.Unix(0, blk.TimeStamp).Format("2006-01-02 15:04:05.999999"))
