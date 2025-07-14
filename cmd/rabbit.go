@@ -21,8 +21,6 @@ var (
 	DialTimeoutSec = 6
 	ReconnectDelaySec = 5
 	MaxRetries = 3
-
-	
 )
 const (
 	ClientMode = iota
@@ -130,6 +128,7 @@ func LoadConfig() (*Config, error) {
 		recvQueueSizeArg           int
 		outboundRecvBufferSizeArg  int
 		
+		printVersion1 bool
 		printVersion bool
 	)
 
@@ -162,12 +161,14 @@ func LoadConfig() (*Config, error) {
 	fs.IntVar(&outboundRecvBufferSizeArg, "buffer-size", 0, "")
 	
 	fs.BoolVar(&printVersion, "version", false, "show version")
+	fs.BoolVar(&printVersion1, "v", false, "show version")
 
 	fs.Parse(os.Args[1:]) // 2. 解析命令行参数，它们会填充到上面的临时变量中
 	
 	// version
-	if printVersion {
-		log.Println("Rabbit TCP (https://github.com/aagun1234/rabbit-mtcp-ws/)")
+	if printVersion ||  printVersion1 {
+		log.Println("Rabbit TCP ws (https://github.com/aagun1234/rabbit-mtcp-ws/)")
+		log.Println("Websocket version of Rabbit TCP (https://github.com/ihciah/rabbit-tcp)")
 		log.Printf("Version: %s.\n", Version)
 		return nil,nil
 	}
@@ -212,7 +213,7 @@ func LoadConfig() (*Config, error) {
 	// 检查每个参数是否在命令行中被显式设置了，如果是，则用命令行值覆盖
 	if flagsSeen["mode"] { cfg.Mode = modeArg }
 	if flagsSeen["verbose"] { cfg.Verbose = verboseArg }
-	if flagsSeen["rabbit-addr"] { cfg.RabbitAddr = splitAndTrim(rabbitAddrArg, ",") } // 命令行参数需要特殊处理
+	if flagsSeen["rabbit-addr"] { cfg.RabbitAddr = splitAndTrim(rabbitAddrArg, ",") } 
 	if flagsSeen["password"] { cfg.Password = passwordArg }
 	if flagsSeen["listen"] { cfg.Listen = listenArg }
 	if flagsSeen["dest"] { cfg.Dest = destArg }

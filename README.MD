@@ -1,6 +1,13 @@
 forked from ihciah/rabbit-tcp
 
-changed into websocket connections
+Change the TCP connection to a WebSocket connection, which can directly use CDN.
+
+Load configuration from yaml file.
+
+Modify connection and listening parameters to support connections and listening on multiple IP addresses and ports.
+
+Add ping-pong over WebSocket to maintain connection status and measure latency. If possible, consider implementing multi-link load balancing based on latency-weighted routing in the future.
+
 
 # Rabbit TCP
 
