@@ -59,7 +59,7 @@ func biRelay(left, right connection.HalfOpenConn, logger *logger.Logger) {
 	wg.Add(1)
 	go relay(right, left, &wg, logger, "local -> tunnel")
 	wg.Wait()
-	// logger.Errorf("===========> Close client biRelay")
+	logger.Debugf("===========> Close client biRelay")
 	_ = left.Close()
 	_ = right.Close()
 }
@@ -76,9 +76,9 @@ func relay(dst, src connection.HalfOpenConn, wg *sync.WaitGroup, logger *logger.
 			logger.Errorf("Error when relay client: %v.\n", err)
 		}
 	} else {
-		// logger.Debugf("!!!!!!!!!!!!!!!! %s : dst close write", label)
+		logger.Debugf("!!!!!!!!!!!!!!!! %s : dst close write", label)
 		dst.CloseWrite()
-		// logger.Debugf("!!!!!!!!!!!!!!!! %s : src close read", label)
+		logger.Debugf("!!!!!!!!!!!!!!!! %s : src close read", label)
 		src.CloseRead()
 	}
 }

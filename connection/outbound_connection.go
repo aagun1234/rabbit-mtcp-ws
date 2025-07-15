@@ -58,6 +58,7 @@ func (oc *OutboundConnection) RecvRelay() {
 		n, err := oc.HalfOpenConn.Read(recvBuffer)
 		if err == nil {
 			oc.sendData(recvBuffer[:n])
+			oc.logger.InfoAf("OutboundConnection C->S %d bytes",n)
 			oc.HalfOpenConn.SetReadDeadline(time.Time{})
 		} else if err == io.EOF {
 			oc.logger.Debugln("EOF received from outbound connection.")
