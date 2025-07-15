@@ -32,6 +32,7 @@ const (
 type Config struct {
 	Mode               string        `yaml:"mode"`            // 运行模式: "client" 或 "server"
 	ConfigFile         string        `yaml:"-"`               // 配置文件路径 (不写入YAML)
+	AppName            string        `yaml:"appname"`               // 配置文件路径 (不写入YAML)
 	Verbose            int           `yaml:"verbose"`         // 日志级别: 1-5`
 	RabbitAddr         []string      `yaml:"rabbit-addr"`     // 服务端WebSocket URL列表 (例如: ["ws://server1:8081/tunnel", "wss://server2:8082/tunnel"])
 	Password           string        `yaml:"password"`        //加密用
@@ -66,6 +67,7 @@ type Config struct {
 func NewDefaultConfig() *Config {
 	return &Config{
 		Mode:                 "client",
+		AppName:              "rabbit-mtcp-ws",
 		Verbose:              4,
 		RabbitAddr:           []string{"ws://127.0.0.1:443/tunnel"},
 		Password:             "PASSWORD",
@@ -83,9 +85,9 @@ func NewDefaultConfig() *Config {
 		ReconnectDelaySec:    5,
 		OutboundBlockTimeoutSec: 3,
 		MaxRetries:           3,
-		OrderedRecvQueueSize: 64,
-		SendQueueSize:        64,
-		RecvQueueSize:        64,
+		OrderedRecvQueueSize: 32,
+		SendQueueSize:        32,
+		RecvQueueSize:        32,
 		OutboundRecvBufferSize: 32 * 1024,
 		StatusServer:         "127.0.0.1:8010",
 		StatusACL:            "",
@@ -103,6 +105,7 @@ func LoadConfig() (*Config, error) {
 
 	var (
 		modeArg               string
+		appNameArg            string
 		configFileArg         string
 		verboseArg            int
 		rabbitAddrArg         string
@@ -136,6 +139,7 @@ func LoadConfig() (*Config, error) {
 	// 注意：这里将flag的默认值设为空字符串/0/false，以便通过flagsSeen map判断是否被设置
 	fs.StringVar(&configFileArg, "c", "", "Path to configuration file (YAML)")
 	fs.StringVar(&modeArg, "mode", "", "running mode(s or c)")
+	fs.StringVar(&appNameArg, "appname", "", "Application name in syslog")
 	fs.IntVar(&verboseArg, "verbose", 0, "verbose level(0~6)")
 	fs.StringVar(&rabbitAddrArg, "rabbit-addr", "", "Comma-separated list of server WebSocket URLs")
 	fs.StringVar(&passwordArg, "password", "", "password")
@@ -143,22 +147,22 @@ func LoadConfig() (*Config, error) {
 	fs.StringVar(&destArg, "dest", "", "[Client Only] destination address, eg: shadowsocks server address")
 	fs.IntVar(&tunnelNArg, "tunnelN", 0, "[Client Only] number of tunnels to use in rabbit-tcp")
 	fs.StringVar(&authKeyArg, "authkey", "", "Websocket authkey, eg: mysecret")
-	fs.StringVar(&tlsCertFileArg, "tls-certfile", "", "[Server Only] TLS crt file path, eg: /root/server.crt")
+	fs.StringVar(&tlsCertFileArg, "tls-certfile", "", "[Server Only] TLS cert file path, eg: /root/server.crt")
 	fs.StringVar(&tlsKeyFileArg, "tls-keyfile", "", "[Server Only] TLS key file path, eg: /root/server.key")
 	fs.BoolVar(&insecureArg, "insecure", false, "InsecureSkipVerify")
 	fs.StringVar(&statusServerArg, "status-server", "", "Sataus server listen address")
 	fs.StringVar(&statusACLArg, "status-acl", "", "Status server ACL")
-	fs.IntVar(&pingIntervalSecArg, "ping-interval", 0, "")
-	fs.IntVar(&dialTimeoutSecArg, "dial-timeout", 0, "")
-	fs.IntVar(&recvTimeoutSecArg, "recv-timeout", 0, "")
-	fs.IntVar(&packetWaitTimeoutSecArg, "packet-timeout", 0, "")
-	fs.IntVar(&reconnectDelaySecArg, "reconnect-delay", 0, "")
-	fs.IntVar(&outboundBlockTimeoutSecArg, "outbound-timeout", 0, "")
-	fs.IntVar(&maxRetriesArg, "max-retries", 0, "")
-	fs.IntVar(&orderedRecvQueueSizeArg, "order-rqueue-size", 0, "")
-	fs.IntVar(&sendQueueSizeArg, "squeue-size", 0, "")
-	fs.IntVar(&recvQueueSizeArg, "rqueue-size", 0, "")
-	fs.IntVar(&outboundRecvBufferSizeArg, "buffer-size", 0, "")
+	fs.IntVar(&pingIntervalSecArg, "ping-interval", 0, "Ping-pong interval, default 30(seconds)")
+	fs.IntVar(&dialTimeoutSecArg, "dial-timeout", 0, "Dial timeout, default 6(seconds)")
+	fs.IntVar(&recvTimeoutSecArg, "recv-timeout", 0, "Packet receive read timeout, default 20(seconds)")
+	fs.IntVar(&packetWaitTimeoutSecArg, "packet-timeout", 0, "Inbound packet sequence waiting timeout, default 8(seconds)")
+	fs.IntVar(&reconnectDelaySecArg, "reconnect-delay", 0, "Delay between reconnects, default 5(seconds)")
+	fs.IntVar(&outboundBlockTimeoutSecArg, "outbound-timeout", 0, "Outbound packet timeout, default 3(seconds)")
+	fs.IntVar(&maxRetriesArg, "max-retries", 0, "Max retries not implented")
+	fs.IntVar(&orderedRecvQueueSizeArg, "order-rqueue-size", 0, "Ordered receive queue size, default 32")
+	fs.IntVar(&sendQueueSizeArg, "squeue-size", 0, "Send queue size, default 32")
+	fs.IntVar(&recvQueueSizeArg, "rqueue-size", 0, "Receive queue size, default 32")
+	fs.IntVar(&outboundRecvBufferSizeArg, "buffer-size", 0, "Receive BufferSize, default 32*1024")
 	
 	fs.BoolVar(&printVersion, "version", false, "show version")
 	fs.BoolVar(&printVersion1, "v", false, "show version")
@@ -213,6 +217,7 @@ func LoadConfig() (*Config, error) {
 	// 检查每个参数是否在命令行中被显式设置了，如果是，则用命令行值覆盖
 	if flagsSeen["mode"] { cfg.Mode = modeArg }
 	if flagsSeen["verbose"] { cfg.Verbose = verboseArg }
+	if flagsSeen["appname"] { cfg.AppName = appNameArg }
 	if flagsSeen["rabbit-addr"] { cfg.RabbitAddr = splitAndTrim(rabbitAddrArg, ",") } 
 	if flagsSeen["password"] { cfg.Password = passwordArg }
 	if flagsSeen["listen"] { cfg.Listen = listenArg }
@@ -240,7 +245,7 @@ func LoadConfig() (*Config, error) {
 }
 
 
-func parseFlags() (pass bool, mode int, password string, addr []string, listen string, dest, authkey, keyfile, crtfile string, tunnelN int, verbose int, insecure bool) {
+func parseFlags() (pass bool, mode int, password string, addr []string, listen string, dest, authkey, keyfile, crtfile string, tunnelN int, verbose int, insecure bool, appname string) {
 	var modeString string
 
 	cfg, err := LoadConfig()
@@ -257,6 +262,7 @@ func parseFlags() (pass bool, mode int, password string, addr []string, listen s
 	// mode
 	modeString = strings.ToLower(cfg.Mode)
 	password=cfg.Password
+	appname=cfg.AppName
 	addr=cfg.RabbitAddr
 	listen=cfg.Listen
 	dest=cfg.Dest
@@ -326,11 +332,12 @@ func parseFlags() (pass bool, mode int, password string, addr []string, listen s
 }
 
 func main() {
-	pass, mode, password, addr, listen, dest, authkey, keyfile, crtfile, tunnelN, verbose, insecure := parseFlags()
+	pass, mode, password, addr, listen, dest, authkey, keyfile, crtfile, tunnelN, verbose, insecure, appname := parseFlags()
 	if !pass {
 		return
 	}
 	logger.LEVEL = verbose	
+	logger.AppName = appname	
 	mainlogger:=logger.NewLogger("[ClientManager]")
 	
 

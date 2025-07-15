@@ -17,7 +17,10 @@ const (
 	LogLevelDebug
 )
 
-var LEVEL int = LogLevelOff
+var (
+	LEVEL int = LogLevelOff
+	AppName string = "rabbit-mtcp-ws"
+)
 
 type Logger struct {
 	logger *log.Logger
@@ -26,7 +29,7 @@ type Logger struct {
 
 func NewLogger(prefix string) *Logger {
 
-	sysLog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_LOCAL0, "rabbit-tcp-ws")
+	sysLog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_LOCAL0, AppName)
 	if err != nil {
 		log.Fatal(err)
 	}
