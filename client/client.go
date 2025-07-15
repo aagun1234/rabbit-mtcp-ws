@@ -32,7 +32,7 @@ func (c *Client) Dial(address string) connection.HalfOpenConn {
 }
 
 func (c *Client) ServeForward(listen, dest string) error {
-	c.logger.Infof("Listen on %s\n",dest)
+	c.logger.Infof("Listen on %s for target %s \n",listen, dest)
 	listener, err := net.Listen("tcp", listen)
 	if err != nil {
 		return err
@@ -44,9 +44,9 @@ func (c *Client) ServeForward(listen, dest string) error {
 			continue
 		}
 		go func() {
-			c.logger.Infof("Accepted a connection from %s to %s \n",conn.RemoteAddr, dest)
+			c.logger.Infof("Accepted a connection from %s for target %s \n",conn.RemoteAddr(), dest)
 			//c.logger.Infoln("Accepted a connection.")
-			connProxy := c.Dial(dest)
+			connProxy := c.Dial(dest) //调用peer.Dial，由对端节点处理
 			biRelay(conn.(*net.TCPConn), connProxy, c.logger)
 		}()
 	}

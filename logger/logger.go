@@ -2,7 +2,9 @@ package logger
 
 import (
 	"log"
+	"log/syslog"
 	"os"
+	"io"
 )
 
 const (
@@ -23,8 +25,19 @@ type Logger struct {
 }
 
 func NewLogger(prefix string) *Logger {
+
+	sysLog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_LOCAL0, "rabbit-tcp-ws")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+
+	// 创建多写入器，同时写入syslog和标准输出
+	multiWriter := io.MultiWriter(os.Stdout, sysLog)
+	log.SetOutput(multiWriter)
+	
 	return &Logger{
-		logger: log.New(os.Stdout, prefix, log.LstdFlags),
+		logger: log.New(multiWriter, prefix, log.LstdFlags),
 		level:  LEVEL,
 	}
 }
