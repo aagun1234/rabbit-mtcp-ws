@@ -44,6 +44,7 @@ type Config struct {
 	TLSCertFile        string        `yaml:"tls-certfile"`    // 服务端证书文件路径
 	TLSKeyFile         string        `yaml:"tls-keyfile"`     // 服务端密钥文件路径
 	Insecure           bool          `yaml:"insecure"`        // 客户端是否跳过服务端证书验证InsecureSkipVerify
+	UseSyslog          bool          `yaml:"use-syslog"`        // 客户端是否跳过服务端证书验证InsecureSkipVerify
 	
 	StatusServer       string        `yaml:"status"`          // 状态服务侦听的本地TCP地址 (例如: "127.0.0.1:8010")
 	StatusACL          string        `yaml:"status-acl"`      // 状态服务ACL
@@ -78,6 +79,7 @@ func NewDefaultConfig() *Config {
 		TLSCertFile:          "",
 		TLSKeyFile:           "",
 		Insecure:             true,
+		UseSyslog:            true,
 		PingIntervalSec:      30,
 	    DialTimeoutSec:       6,
 		RecvTimeoutSec:       20,
@@ -117,6 +119,7 @@ func LoadConfig() (*Config, error) {
 		tlsCertFileArg        string
 		tlsKeyFileArg         string
 		insecureArg           bool
+		useSyslogArg          bool
 		statusServerArg       string
 		statusACLArg          string
 		pingIntervalSecArg          int
@@ -150,6 +153,7 @@ func LoadConfig() (*Config, error) {
 	fs.StringVar(&tlsCertFileArg, "tls-certfile", "", "[Server Only] TLS cert file path, eg: /root/server.crt")
 	fs.StringVar(&tlsKeyFileArg, "tls-keyfile", "", "[Server Only] TLS key file path, eg: /root/server.key")
 	fs.BoolVar(&insecureArg, "insecure", false, "InsecureSkipVerify")
+	fs.BoolVar(&useSyslogArg, "use-syslog", false, "Write to systemlog")
 	fs.StringVar(&statusServerArg, "status-server", "", "Sataus server listen address")
 	fs.StringVar(&statusACLArg, "status-acl", "", "Status server ACL")
 	fs.IntVar(&pingIntervalSecArg, "ping-interval", 0, "Ping-pong interval, default 30(seconds)")
@@ -245,7 +249,7 @@ func LoadConfig() (*Config, error) {
 }
 
 
-func parseFlags() (pass bool, mode int, password string, addr []string, listen string, dest, authkey, keyfile, crtfile string, tunnelN int, verbose int, insecure bool, appname string) {
+func parseFlags() (pass bool, mode int, password string, addr []string, listen string, dest, authkey, keyfile, crtfile string, tunnelN int, verbose int, insecure bool, appname string, usesyslog bool) {
 	var modeString string
 
 	cfg, err := LoadConfig()
@@ -272,6 +276,7 @@ func parseFlags() (pass bool, mode int, password string, addr []string, listen s
 	verbose=cfg.Verbose
 	tunnelN=cfg.TunnelN
 	insecure=cfg.Insecure
+	usesyslog=cfg.UseSyslog
 	DialTimeoutSec = cfg.DialTimeoutSec
 	ReconnectDelaySec = cfg.ReconnectDelaySec
 	MaxRetries = cfg.MaxRetries
