@@ -10,7 +10,7 @@ Add ping-pong over WebSocket to maintain connection status and measure latency. 
 
 BUT, using websocket DO NOT increase performance
 
-img(.github.com/aagun1234/rabbit-mtcp-ws/blob/main/test.jpg)
+![Speed with rabbit-websocket](https://github.com/aagun1234/rabbit-mtcp-ws/blob/main/test.jpg)
 
 
 # Rabbit TCP
