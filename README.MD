@@ -8,7 +8,7 @@ Modify connection and listening parameters to support connections and listening 
 
 Add ping-pong over WebSocket to maintain connection status and measure latency. If possible, consider implementing multi-link load balancing based on latency-weighted round robin in the future.
 
-![Speed with rabbit-websocket](https://github.com/aagun1234/rabbit-mtcp-ws/blob/main/20250717.jpg)
+![rabbit-websocket](https://github.com/aagun1234/rabbit-mtcp-ws/blob/main/20250717.png)
 
 BUT, using websocket DO NOT increase performance
 
