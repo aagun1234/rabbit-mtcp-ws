@@ -45,6 +45,7 @@ type Config struct {
 	TLSKeyFile         string        `yaml:"tls-keyfile"`     // 服务端密钥文件路径
 	Insecure           bool          `yaml:"insecure"`        // 客户端是否跳过服务端证书验证InsecureSkipVerify
 	UseSyslog          bool          `yaml:"use-syslog"`        // 客户端是否跳过服务端证书验证InsecureSkipVerify
+	RetryFailedAddr    bool          `yaml:"retry-failed"`      // 对于客户端连接失败的rabbit-addr，是否反复重试，如果否，则不会重试连接，直到所有的都连不上
 	
 	StatusServer       string        `yaml:"status"`          // 状态服务侦听的本地TCP地址 (例如: "127.0.0.1:8010")
 	StatusACL          string        `yaml:"status-acl"`      // 状态服务ACL
@@ -80,6 +81,7 @@ func NewDefaultConfig() *Config {
 		TLSKeyFile:           "",
 		Insecure:             true,
 		UseSyslog:            true,
+		RetryFailedAddr:      true,
 		PingIntervalSec:      30,
 	    DialTimeoutSec:       6,
 		RecvTimeoutSec:       20,
@@ -120,6 +122,7 @@ func LoadConfig() (*Config, error) {
 		tlsKeyFileArg         string
 		insecureArg           bool
 		useSyslogArg          bool
+		retryFailedAddrArg    bool
 		statusServerArg       string
 		statusACLArg          string
 		pingIntervalSecArg          int
@@ -154,6 +157,7 @@ func LoadConfig() (*Config, error) {
 	fs.StringVar(&tlsKeyFileArg, "tls-keyfile", "", "[Server Only] TLS key file path, eg: /root/server.key")
 	fs.BoolVar(&insecureArg, "insecure", false, "InsecureSkipVerify")
 	fs.BoolVar(&useSyslogArg, "use-syslog", false, "Write to systemlog")
+	fs.BoolVar(&retryFailedAddrArg, "retry-failed", false, "[Client Only] retry failed rabbit-addr")
 	fs.StringVar(&statusServerArg, "status-server", "", "Sataus server listen address")
 	fs.StringVar(&statusACLArg, "status-acl", "", "Status server ACL")
 	fs.IntVar(&pingIntervalSecArg, "ping-interval", 0, "Ping-pong interval, default 30(seconds)")
@@ -231,6 +235,7 @@ func LoadConfig() (*Config, error) {
 	if flagsSeen["tls-certfile"] { cfg.TLSCertFile = tlsCertFileArg }
 	if flagsSeen["tls-keyfile"] { cfg.TLSKeyFile = tlsKeyFileArg }
 	if flagsSeen["insecure"] { cfg.Insecure = insecureArg }
+	if flagsSeen["retry-failed"] { cfg.RetryFailedAddr = retryFailedAddrArg }
 	if flagsSeen["status-server"] { cfg.StatusServer = statusServerArg }
 	if flagsSeen["status-acl"] { cfg.StatusACL = statusACLArg }
 	if flagsSeen["ping-interval"] { cfg.PingIntervalSec = pingIntervalSecArg }
@@ -249,7 +254,7 @@ func LoadConfig() (*Config, error) {
 }
 
 
-func parseFlags() (pass bool, mode int, password string, addr []string, listen string, dest, authkey, keyfile, crtfile string, tunnelN int, verbose int, insecure bool, appname string, usesyslog bool) {
+func parseFlags() (pass bool, mode int, password string, addr []string, listen string, dest, authkey, keyfile, crtfile string, tunnelN int, verbose int, insecure bool, appname string, usesyslog bool,retryfailed bool) {
 	var modeString string
 
 	cfg, err := LoadConfig()
@@ -280,6 +285,8 @@ func parseFlags() (pass bool, mode int, password string, addr []string, listen s
 	DialTimeoutSec = cfg.DialTimeoutSec
 	ReconnectDelaySec = cfg.ReconnectDelaySec
 	MaxRetries = cfg.MaxRetries
+	retryfailed = cfg.RetryFailedAddr
+	
 	connection.OrderedRecvQueueSize    = cfg.OrderedRecvQueueSize
 	connection.RecvQueueSize           = cfg.RecvQueueSize
 	connection.OutboundRecvBuffer      = cfg.OutboundRecvBufferSize
@@ -294,6 +301,7 @@ func parseFlags() (pass bool, mode int, password string, addr []string, listen s
 	tunnel_pool.PingInterval           = cfg.PingIntervalSec
 	//tunnel_pool.SendQueueSize          = cfg.SendQueueSize
 	tunnel_pool.RecvQueueSize         = cfg.RecvQueueSize
+	
 	if modeString == "c" || modeString == "client" {
 		mode = ClientMode
 	} else if modeString == "s" || modeString == "server" {
@@ -337,19 +345,20 @@ func parseFlags() (pass bool, mode int, password string, addr []string, listen s
 }
 
 func main() {
-	pass, mode, password, addr, listen, dest, authkey, keyfile, crtfile, tunnelN, verbose, insecure, appname := parseFlags()
+	pass, mode, password, addr, listen, dest, authkey, keyfile, crtfile, tunnelN, verbose, insecure, appname, usesyslog, retryfailed := parseFlags()
 	if !pass {
 		return
 	}
 	logger.LEVEL = verbose	
-	logger.AppName = appname	
+	logger.AppName = appname
+	logger.UseSyslog = usesyslog
 	mainlogger:=logger.NewLogger("[ClientManager]")
 	
 
 	mainlogger.Debugf("mode: %v, password: %v, addr: %v, listen: %v, dest: %v, authkey: %v, keyfile: %v, crtfile: %v, tunnelN: %v, verbose: %v\n",mode, password, addr, listen, dest, authkey, keyfile, crtfile, tunnelN, verbose)
 	cipher, _ := tunnel.NewAEADCipher("CHACHA20-IETF-POLY1305", nil, password)
 	if mode == ClientMode {
-		c := client.NewClient(tunnelN, addr, cipher, authkey,insecure)
+		c := client.NewClient(tunnelN, addr, cipher, authkey, insecure, retryfailed)
 		c.ServeForward(listen, dest)
 	} else {
 	    

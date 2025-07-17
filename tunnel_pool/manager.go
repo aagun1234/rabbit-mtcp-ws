@@ -32,16 +32,17 @@ type ClientManager struct {
 	logger             *logger.Logger
 	authkey            string
 	insecure           bool
+	retryFailed        bool
 }
 type ClientCFG struct {
 	tunnelNum          int
 	endpoints          []string
 	authkey            string
 	insecure           bool
-	
+	retryFailed        bool
 }
 
-func NewClientManager(tunnelNum int, endpoints []string, peerID uint32, cipher tunnel.Cipher, authkey string, insecure bool) ClientManager {
+func NewClientManager(tunnelNum int, endpoints []string, peerID uint32, cipher tunnel.Cipher, authkey string, insecure bool, retryfailed bool) ClientManager {
 	return ClientManager{
 		tunnelNum: tunnelNum,
 		endpoints:  endpoints,
@@ -50,6 +51,7 @@ func NewClientManager(tunnelNum int, endpoints []string, peerID uint32, cipher t
 		logger:    logger.NewLogger("[ClientManager]"),
 		authkey:   authkey,
 		insecure:  insecure,
+		retryFailed: retryfailed,
 	}
 }
 // TLSConfigFromFiles 从文件加载 TLS 配置
@@ -90,7 +92,7 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 	defer cm.decreaseNotifyLock.Unlock()
 	tunnelCount := len(pool.tunnelMapping)
 	lastfailed:=""
-	
+	retryweight := make(map[string]int, len(cm.endpoints))
 	for tunnelToCreate := cm.tunnelNum - tunnelCount; tunnelToCreate > 0; {
 		
 		select {
@@ -140,24 +142,33 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 			//conn, err := net.Dial("tcp", endpoint) //cm.endpoint)
 			if err != nil {
 				cm.logger.Errorf("Error when dial to %s: %v.\n", endpoint, err)
-				if lastfailed==endpoint {// if second time fail to endpoint
-					if curindex == (len(cm.endpoints)-1) { // move last endpoint to first
-						cm.endpoints[curindex]=cm.endpoints[0]
-						cm.endpoints[0] = endpoint
-					} else { 
-					// going to reconnect to last success endpoint, move current failed endpoint to an older position
-						cm.endpoints[curindex]=cm.endpoints[curindex+1]
-						cm.endpoints[curindex+1]=endpoint
+				
+				if cm.retryFailed {
+					if retryweight[endpoint]<5 {
+						retryweight[endpoint]++
 					}
-					cm.logger.Errorf(" %s moved to last.\n", endpoint)
-					continue
+				} else {
+					if lastfailed==endpoint {// if second time fail to endpoint
+						if curindex == (len(cm.endpoints)-1) { // move last endpoint to first
+							cm.endpoints[curindex]=cm.endpoints[0]
+							cm.endpoints[0] = endpoint
+						} else { 
+						// going to reconnect to last success endpoint, move current failed endpoint to an older position
+							cm.endpoints[curindex]=cm.endpoints[curindex+1]
+							cm.endpoints[curindex+1]=endpoint
+						}
+						cm.logger.Errorf(" %s moved to last.\n", endpoint)
+					}
+					retryweight[endpoint]=1
 				}
-				time.Sleep(time.Duration(ErrorWaitSec) * time.Second)
+				time.Sleep(time.Duration(retryweight[endpoint] * ErrorWaitSec) * time.Second)
 				lastfailed=endpoint
 				continue
+				
 			}
-			if lastfailed==endpoint {
-				lastfailed="" //last failed successed, reset
+			if lastfailed==endpoint { //last failed successed, reset
+				lastfailed="" 
+				retryweight[endpoint]=0
 			}
 			tun, err := NewActiveTunnel(conn, cm.cipher, cm.peerID)//创建一个tunnel并交换ID（握手）
 			if err != nil {

@@ -1,12 +1,11 @@
-// +build !windows
+// +build windows
 
 package logger
 
 import (
 	"log"
-	"log/syslog"
 	"os"
-	"io"
+
 )
 
 const (
@@ -32,25 +31,10 @@ type Logger struct {
 
 func NewLogger(prefix string) *Logger {
 
-	if UseSyslog {
-		sysLog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_LOCAL0, AppName)
-		if err != nil {
-			log.Fatal(err)
-		}
-		// 创建多写入器，同时写入syslog和标准输出
-		multiWriter := io.MultiWriter(os.Stdout, sysLog)
-		log.SetOutput(multiWriter)
-	
-		return &Logger{
-			logger: log.New(multiWriter, prefix, log.LstdFlags),
-			level:  LEVEL,
-		}
-	} else {
 		return &Logger{
 			logger: log.New(os.Stdout, prefix, log.LstdFlags),
 			level:  LEVEL,
 		}
-	}
 }
 
 func (l *Logger) Logln(v string) {
