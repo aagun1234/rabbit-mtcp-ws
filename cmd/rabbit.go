@@ -58,10 +58,10 @@ type Config struct {
 	OutboundBlockTimeoutSec int           `yaml:"outblock-timeout"` // If block processor is waiting for a "hole", and no packet comes within this limit, the Connection will be closed 3
 	MaxRetries              int           `yaml:"max-retries"`     // 连接重试最大次数
 	
-	OrderedRecvQueueSize    int           `yaml:"order-rqueue-size"`     // 64  OrderedRecvQueue channe
-	SendQueueSize           int           `yaml:"squeue-size"`      //64
-	RecvQueueSize           int           `yaml:"rqueue-size"`      //64
-	OutboundRecvBufferSize  int           `yaml:"recv-buffersize"`     //64 * 1024
+	OrderedRecvQueueSize    int           `yaml:"order-rqueue-size"`     // 32  OrderedRecvQueue channe
+	SendQueueSize           int           `yaml:"squeue-size"`      //32
+	RecvQueueSize           int           `yaml:"rqueue-size"`      //32
+	OutboundRecvBufferSize  int           `yaml:"recv-buffersize"`     //32 * 1024
 }
 
 // NewDefaultConfig 返回一个默认配置实例
