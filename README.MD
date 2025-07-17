@@ -2,7 +2,7 @@ forked from ihciah/rabbit-tcp
 
 Change the TCP connection to WebSocket connection, which can directly use CDN.
 
-Load configuration from yaml file.
+Load configuration from yaml file. see s.yaml & c.yaml
 
 Modify connection and listening parameters to support connections and listening on multiple IP addresses and ports.
 
